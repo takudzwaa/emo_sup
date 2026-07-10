@@ -1,0 +1,180 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Prefer Firebase Auth custom claim `role: "listener"` (Admin SDK after vetting).
+    function isListener() {
+      return signedIn()
+        && request.auth.token.role == 'listener';
+    }
+
+    function chatDoc(sessionId) {
+      return get(/databases/$(database)/documents/chats/$(sessionId)).data;
+    }
+
+    function isChatParticipant(sessionId) {
+      let c = chatDoc(sessionId);
+      return signedIn()
+        && (request.auth.uid == c.userId || request.auth.uid == c.listenerId);
+    }
+
+    // ── users ─────────────────────────────────────────────
+    match /users/{uid} {
+      // No collection-wide list for clients
+      allow list: if false;
+
+      allow get: if isSelf(uid);
+      // Create/update only own doc; cannot inject another uid
+      allow create: if isSelf(uid)
+        && request.resource.data.uid == uid
+        && !('email' in request.resource.data)
+        && !('phone' in request.resource.data)
+        && !('legalName' in request.resource.data);
+      allow update: if isSelf(uid)
+        && request.resource.data.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['uid', 'createdAt']);
+      allow delete: if isSelf(uid); // or Cloud Function only for GDPR
+
+      match /mood_entries/{entryId} {
+        allow list, get: if isSelf(uid);
+        allow create: if isSelf(uid)
+          && request.resource.data.keys().hasOnly(['timestamp', 'value'])
+          && request.resource.data.value is int
+          && request.resource.data.value >= 1
+          && request.resource.data.value <= 5;
+        allow update, delete: if isSelf(uid);
+      }
+    }
+
+    // ── listeners ─────────────────────────────────────────
+    match /listeners/{listenerId} {
+      // Bookings “find a listener” needs individual gets / constrained query.
+      // OPEN (pre-scale): open list is convenient for the prototype; split a
+      // listener_public/{id} projection before scaling past ~5–10 listeners.
+      allow list: if signedIn();
+      allow get: if signedIn();
+
+      // Only the listener (or Admin SDK) updates availability / bio
+      allow create, update: if isListener() && isSelf(listenerId);
+      allow delete: if false; // admin only
+    }
+
+    // ── chats + messages ──────────────────────────────────
+    // BUG FIX (7a): previous sketch used a placeholder `|| true` on list that
+    // made every chat listable by any signed-in user. List is now constrained
+    // to userId / listenerId participants (query shape required by clients).
+    match /chats/{sessionId} {
+      // Client must always query with .where('userId','==', uid)
+      // or .where('listenerId','==', uid) — this rule requires that shape.
+      allow list: if signedIn() && (
+        resource.data.userId == request.auth.uid
+        || (isListener() && resource.data.listenerId == request.auth.uid)
+      );
+
+      allow get: if signedIn()
+        && (resource.data.userId == request.auth.uid
+            || (isListener() && resource.data.listenerId == request.auth.uid));
+
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll([
+             'userId', 'listenerId', 'startedAt', 'status'
+           ]);
+      // Prefer creating via Admin SDK / Cloud Function after matchmaking,
+      // rather than trusting client-supplied listenerId directly.
+
+      allow update: if signedIn()
+        && (resource.data.userId == request.auth.uid
+            || (isListener() && resource.data.listenerId == request.auth.uid))
+        && !request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasAny(['userId', 'listenerId', 'startedAt']);
+
+      allow delete: if false; // soft-end via endedAt / status
+
+      match /messages/{messageId} {
+        allow list, get: if isChatParticipant(sessionId);
+
+        allow create: if isChatParticipant(sessionId)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.keys().hasAll([
+               'senderId', 'text', 'timestamp', 'status'
+             ])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() < 4000;
+
+        allow update: if isChatParticipant(sessionId)
+          // e.g. status delivered/read only; not rewriting text
+          && request.resource.data.senderId == resource.data.senderId
+          && request.resource.data.text == resource.data.text
+          && request.resource.data.timestamp == resource.data.timestamp;
+
+        allow delete: if false;
+      }
+    }
+
+    // ── bookings ──────────────────────────────────────────
+    match /bookings/{bookingId} {
+      allow list: if signedIn()
+        && (
+          // client must query where userId == auth.uid OR listenerId == auth.uid
+          resource.data.userId == request.auth.uid
+          || (isListener() && resource.data.listenerId == request.auth.uid)
+        );
+
+      allow get: if signedIn()
+        && (resource.data.userId == request.auth.uid
+            || (isListener() && resource.data.listenerId == request.auth.uid));
+
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status in ['pending', 'confirmed'];
+
+      // User may cancel own; listener may mark completed — not reassign parties
+      allow update: if signedIn()
+        && (resource.data.userId == request.auth.uid
+            || (isListener() && resource.data.listenerId == request.auth.uid))
+        && !request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasAny(['userId', 'listenerId', 'slotStart']);
+
+      allow delete: if false; // prefer status = cancelled
+    }
+
+    // ── reports (write-once for submitter) ─────────────────
+    match /reports/{reportId} {
+      allow list, get: if false; // not readable by submitter or listeners
+
+      allow create: if signedIn()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.keys().hasAll([
+             'reporterId', 'targetType', 'targetId', 'reason', 'createdAt', 'status'
+           ])
+        && request.resource.data.status == 'open'
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0
+        && request.resource.data.reason.size() < 200
+        && (
+          !('details' in request.resource.data)
+          || request.resource.data.details.size() < 2000
+        );
+
+      allow update, delete: if false; // Admin SDK / console only
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
