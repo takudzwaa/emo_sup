@@ -9,6 +9,7 @@ import 'data/repositories/memory_booking_repository.dart';
 import 'data/repositories/memory_chat_repository.dart';
 import 'data/repositories/memory_listener_directory_repository.dart';
 import 'data/repositories/memory_listener_ops_repository.dart';
+import 'data/repositories/memory_match_repository.dart';
 import 'data/repositories/memory_membership_repository.dart';
 import 'data/repositories/memory_mood_repository.dart';
 import 'data/repositories/memory_safety_repository.dart';
@@ -80,17 +81,20 @@ AppServices _memoryServices({
   required AuthService auth,
   required bool firebaseReady,
 }) {
+  final listeners = MemoryListenerDirectoryRepository();
+  final chats = MemoryChatRepository.withDemoSession();
   return AppServices(
     flavor: flavor,
     auth: auth,
     profiles: MemoryUserProfileRepository(),
     moods: MemoryMoodRepository(),
     bookings: MemoryBookingRepository(),
-    listeners: MemoryListenerDirectoryRepository(),
+    listeners: listeners,
     membership: MemoryMembershipRepository(),
-    chats: MemoryChatRepository.withDemoSession(),
+    chats: chats,
     listenerOps: MemoryListenerOpsRepository(),
     safety: MemorySafetyRepository(),
+    match: MemoryMatchRepository(listeners: listeners, chats: chats),
     firebaseReady: firebaseReady,
   );
 }

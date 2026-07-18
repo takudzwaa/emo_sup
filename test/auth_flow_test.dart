@@ -35,6 +35,10 @@ void main() {
 
     expect(find.text('Sign in privately'), findsOneWidget);
 
+    // Phone-first UI: switch to email for this test.
+    await tester.tap(find.text('Email'));
+    await tester.pumpAndSettle();
+
     final fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'user@example.com');
     await tester.enterText(fields.at(1), 'secret12');
@@ -79,6 +83,9 @@ void main() {
     await tester.tap(find.text('Get started anonymously'));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Email'));
+    await tester.pumpAndSettle();
+
     final fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'a@b.co');
     await tester.enterText(fields.at(1), 'secret12');
@@ -103,10 +110,9 @@ void main() {
     await tester.tap(find.text('Get started anonymously'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Phone'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextField), '+15551234567');
+    // Phone is default (ZW pilot).
+    expect(find.textContaining('+263'), findsWidgets);
+    await tester.enterText(find.byType(TextField).first, '+263771234567');
     await tester.tap(find.text('Send code'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));

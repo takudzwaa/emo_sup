@@ -161,7 +161,7 @@ void main() {
     await tester.tap(find.text('Talk to Someone'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Listener — Amara K.'), findsWidgets);
+    expect(find.textContaining('Listener —'), findsWidgets);
     expect(find.text('Private conversation'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
   });

@@ -85,3 +85,25 @@ or `EmoSupApp.fromServices`.
 - Welcome uses l10n; MaterialApp supports `en` / `sn` / `nd`
 - Listener seeds: English / Shona / Ndebele (ZW pilot)
 - **Crisis packs not localized here** (partner gate in PR 18+)
+
+---
+
+# PR 7–10 notes (backend authority)
+
+## PR 7 — Phone-first auth + profile persistence
+- Auth default mode **phone**, prefills **+263**
+- `AuthController` uses `UserProfileRepository`; restore + returning-user skip
+- Rules: user field ACL, `fcm_tokens` RW self, `match_quota` read-only client, no client profile delete
+
+## PR 8 — listener_public
+- `listener_public/{id}` list/get for signed-in; **writes deny**
+- Private `listeners` list denied; self get for claim `role: listener`
+
+## PR 9 — Bookings lockdown
+- Client **create/update/delete denied** on bookings
+- Model: `pending_payment`, `expired`, hold/sponsor fields
+
+## PR 10 — requestMatch + chat create deny + quota
+- Client chat **create denied**
+- `MemoryMatchRepository` (2 free async/week) + Home empty-states
+- CF scaffold: `functions/src/index.ts` → `requestMatch` (EU region)

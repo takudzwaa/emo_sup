@@ -4,6 +4,7 @@ import 'domain/repositories/booking_repository.dart';
 import 'domain/repositories/chat_repository.dart';
 import 'domain/repositories/listener_directory_repository.dart';
 import 'domain/repositories/listener_ops_repository.dart';
+import 'domain/repositories/match_repository.dart';
 import 'domain/repositories/membership_repository.dart';
 import 'domain/repositories/mood_repository.dart';
 import 'domain/repositories/safety_repository.dart';
@@ -26,6 +27,7 @@ class AppServices {
     required this.chats,
     required this.listenerOps,
     required this.safety,
+    required this.match,
     this.firebaseReady = false,
   });
 
@@ -39,6 +41,7 @@ class AppServices {
   final ChatRepository chats;
   final ListenerOpsRepository listenerOps;
   final SafetyRepository safety;
+  final MatchRepository match;
 
   /// True when Firebase.initializeApp succeeded (staging/prod path).
   final bool firebaseReady;

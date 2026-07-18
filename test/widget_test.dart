@@ -38,7 +38,8 @@ void main() {
     await tester.tap(find.text('Talk to Someone'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Listener — Amara K.'), findsOneWidget);
+    // Match assigns a directory listener (e.g. Harbor), not the old demo name.
+    expect(find.textContaining('Listener —'), findsWidgets);
     expect(find.text('Private conversation'), findsOneWidget);
   });
 

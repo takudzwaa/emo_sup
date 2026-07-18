@@ -38,7 +38,16 @@ users/{uid}/mood_entries/{entryId}             // Home check-ins (optional subco
   timestamp: timestamp
   value: number                                // 1–5
 
-listeners/{listenerId}                         // vetted listener profile + status
+listener_public/{listenerId}                   // directory projection (signed-in list/get)
+  id: string
+  displayName: string
+  bio: string
+  languages: string[]
+  availableNow: boolean
+  tier: string                                 // "standard" | "premium"
+  // NEVER: private contact, legal name, earnings
+
+listeners/{listenerId}                         // private ops doc (listener self get only)
   id: string                                   // == document id (often Auth uid)
   displayName: string                          // e.g. "Listener — Harbor"
   bio: string                                  // 1–2 lines, self-written
@@ -47,10 +56,22 @@ listeners/{listenerId}                         // vetted listener profile + stat
   role: string                                 // always "listener" (custom claim preferred)
   createdAt: timestamp
   // NEVER: legal last name, personal photo, home address
-  // availability slots (MVP: generate client-side mock; later:)
-  // listeners/{id}/availability/{slotId} → start: timestamp, requiresPremium: boolean
+  // availability: listeners/{id}/availability/{slotId} — CF writes; signed-in read
 
-chats/{sessionId}                              // 1:1 session header
+users/{uid}/match_quota/{weekId}               // free async quota (CF write only)
+  weekId: string
+  asyncStarted: number
+  asyncRefunded: number
+  updatedAt: timestamp
+
+users/{uid}/fcm_tokens/{tokenId}               // client-managed device tokens
+
+config/free_match                              // CF + optional client get
+  weeklyAsyncQuota: number                     // pilot default 2
+  timezone: string                             // "Africa/Harare"
+  enabled: boolean
+
+chats/{sessionId}                              // 1:1 session header — **CF create only**
   id: string
   userId: string                               // users/{uid}
   listenerId: string                           // listeners/{id}
@@ -64,6 +85,10 @@ chats/{sessionId}                              // 1:1 session header
   userUnreadCount: number
   listenerUnreadCount: number
   status: string                               // "active" | "ended" | "escalated"
+  mode: string                                 // "now" | "async"
+  quotaCharged: boolean
+  quotaWeekId: string | null
+  quotaRefunded: boolean
 
 chats/{sessionId}/messages/{messageId}
   id: string
@@ -72,12 +97,18 @@ chats/{sessionId}/messages/{messageId}
   timestamp: timestamp
   status: string                               // "sending"|"sent"|"delivered"|"read"|"failed"
 
-bookings/{bookingId}
+bookings/{bookingId}                           // **CF create/update only** (PR 9)
   id: string
   userId: string
   listenerId: string
   slotStart: timestamp
-  status: string                               // "pending"|"confirmed"|"cancelled"|"completed"
+  status: string                               // pending_payment|confirmed|cancelled|completed|expired
+  paymentStatus: string                        // free|plan|sponsored|paid|pending
+  priceCents: number
+  currency: string
+  planApplied: boolean
+  holdExpiresAt: timestamp | null
+  sponsorId: string | null
   createdAt: timestamp
   // optional denorm for UI
   userAnonymousName: string

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../data/booking_store.dart';
+import '../data/chat_store.dart';
 import '../data/membership_store.dart';
 import '../data/mood_store.dart';
+import '../data/repositories/memory_match_repository.dart';
+import '../domain/repositories/match_repository.dart';
+import '../models/chat_message.dart';
 import '../models/mood_entry.dart';
 import '../utils/date_format.dart';
 import '../widgets/anonymous_avatar.dart';
@@ -21,12 +25,19 @@ class HomeScreen extends StatefulWidget {
     required this.moodStore,
     required this.bookingStore,
     required this.membershipStore,
+    this.matchRepository,
+    this.userId = 'user_quiet_river',
     this.anonymousUsername = 'Quiet River',
   });
 
   final MoodStore moodStore;
   final BookingStore bookingStore;
   final MembershipStore membershipStore;
+
+  /// Server-authoritative matchmaking (PR 10). Defaults to memory match.
+  final MatchRepository? matchRepository;
+
+  final String userId;
 
   /// Anonymous display name only — never a real name or public profile.
   final String anonymousUsername;
@@ -36,6 +47,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _matching = false;
+  late final MatchRepository _match =
+      widget.matchRepository ?? MemoryMatchRepository();
+
   @override
   void initState() {
     super.initState();
@@ -85,11 +100,121 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openChat() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const ChatScreen(),
-      ),
+  Future<void> _openChat() async {
+    if (_matching) return;
+    setState(() => _matching = true);
+    try {
+      final result = await _match.requestMatch(
+        userId: widget.userId,
+        userDisplayName: widget.anonymousUsername,
+        mode: MatchMode.async,
+        preferredLanguages: const ['English', 'Shona', 'Ndebele'],
+      );
+
+      if (!mounted) return;
+
+      switch (result) {
+        case MatchSuccess(:final session):
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ChatScreen(
+                chatStore: ChatStore(
+                  session: session,
+                  seedMessages: [
+                    ChatMessage(
+                      id: '${session.id}_open',
+                      senderId: session.listenerId,
+                      text:
+                          "Hi — I'm here to listen. This is a private space; "
+                          'share only what feels comfortable.',
+                      timestamp: DateTime.now(),
+                      status: MessageStatus.delivered,
+                    ),
+                  ],
+                  mockListenerReplies: true,
+                ),
+              ),
+            ),
+          );
+        case MatchQuotaExceeded(:final used, :final limit):
+          await _showMatchEmptyState(
+            title: 'Free chats used for this week',
+            body:
+                'You have used $used of $limit free chats this week. '
+                'You can book a future session, open crisis resources, '
+                'or try again later. Safety is always free.',
+          );
+        case MatchNoCapacity():
+          await _showMatchEmptyState(
+            title: 'No listeners available right now',
+            body:
+                'Everyone is busy at the moment. Book a session, open crisis '
+                'resources if you need urgent help, or try again soon.',
+          );
+        case MatchDisabled():
+          await _showMatchEmptyState(
+            title: 'Matching is paused',
+            body:
+                'Talk-to-someone is temporarily unavailable. You can still '
+                'open Safety & Privacy and crisis resources.',
+          );
+        case MatchError(:final message):
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+      }
+    } finally {
+      if (mounted) setState(() => _matching = false);
+    }
+  }
+
+  Future<void> _showMatchEmptyState({
+    required String title,
+    required String body,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 10),
+              Text(body, style: Theme.of(ctx).textTheme.bodyMedium),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _openBookings();
+                },
+                child: const Text('Book a session'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SafetyPrivacyScreen(
+                        initialSection: SafetyHubSection.crisisResources,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Crisis resources'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Try again later'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -186,13 +311,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 28),
 
                       SoftPrimaryButton(
-                        onPressed: _openChat,
-                        label: 'Talk to Someone',
+                        onPressed: _matching ? null : _openChat,
+                        label: _matching ? 'Connecting…' : 'Talk to Someone',
                         icon: Icons.chat_bubble_outline_rounded,
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Connect with a trained listener — not therapy.',
+                        'Connect with a trained listener — not therapy. '
+                        'Free async chats are limited each week.',
                         style: textTheme.bodySmall?.copyWith(
                           color: scheme.onSurface.withValues(alpha: 0.5),
                         ),

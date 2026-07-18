@@ -1,25 +1,28 @@
 import 'package:flutter/foundation.dart';
 
+import '../domain/repositories/user_profile_repository.dart';
+import '../data/repositories/memory_user_profile_repository.dart';
 import '../models/user_profile.dart';
 import 'anonymous_name_generator.dart';
 import 'auth_service.dart';
 
 /// Orchestrates onboarding: credentials → display name → consent → Home.
 ///
-/// Profile is held in memory for the prototype. Later:
-/// ```
-/// users/{uid}  // UserProfile.toMap()
-/// ```
+/// Profiles persist via [UserProfileRepository] (`users/{uid}`).
 class AuthController extends ChangeNotifier {
   AuthController({
     required this.authService,
+    UserProfileRepository? profileRepository,
     AnonymousNameGenerator? nameGenerator,
     UserProfile? initialProfile,
-  })  : _nameGenerator = nameGenerator ?? AnonymousNameGenerator(),
+  })  : profileRepository =
+            profileRepository ?? MemoryUserProfileRepository(),
+        _nameGenerator = nameGenerator ?? AnonymousNameGenerator(),
         _profile = initialProfile;
 
   /// Underlying Firebase or prototype auth implementation.
   final AuthService authService;
+  final UserProfileRepository profileRepository;
   final AnonymousNameGenerator _nameGenerator;
 
   UserProfile? _profile;
@@ -27,6 +30,7 @@ class AuthController extends ChangeNotifier {
   String? _draftName;
   bool _hasRegeneratedName = false;
   bool _consentAccepted = false;
+  bool _restoring = false;
 
   UserProfile? get profile => _profile;
   bool get isAuthenticated => _profile != null;
@@ -36,6 +40,25 @@ class AuthController extends ChangeNotifier {
   bool get canRegenerateName => !_hasRegeneratedName;
   bool get hasRegeneratedName => _hasRegeneratedName;
   bool get consentAccepted => _consentAccepted;
+  bool get isRestoring => _restoring;
+
+  /// If Auth has a uid and a stored profile exists, land on Home (session restore).
+  Future<void> tryRestoreSession() async {
+    final uid = authService.currentUid;
+    if (uid == null || _profile != null) return;
+    _restoring = true;
+    notifyListeners();
+    try {
+      final existing = await profileRepository.getProfile(uid);
+      if (existing != null) {
+        _profile = existing;
+        _consentAccepted = true;
+      }
+    } finally {
+      _restoring = false;
+      notifyListeners();
+    }
+  }
 
   /// Email / password path → pending session (name not confirmed yet).
   Future<void> authenticateWithEmail({
@@ -46,6 +69,15 @@ class AuthController extends ChangeNotifier {
       email: email,
       password: password,
     );
+    // Returning user: load profile and skip onboarding.
+    final existing = await profileRepository.getProfile(uid);
+    if (existing != null) {
+      _profile = existing;
+      _pending = null;
+      _consentAccepted = true;
+      notifyListeners();
+      return;
+    }
     _pending = PendingAuthSession(uid: uid, authMethod: AuthMethod.email);
     _draftName ??= _nameGenerator.generate();
     _hasRegeneratedName = false;
@@ -64,6 +96,14 @@ class AuthController extends ChangeNotifier {
       verificationId: verificationId,
       smsCode: smsCode,
     );
+    final existing = await profileRepository.getProfile(uid);
+    if (existing != null) {
+      _profile = existing;
+      _pending = null;
+      _consentAccepted = true;
+      notifyListeners();
+      return;
+    }
     _pending = PendingAuthSession(uid: uid, authMethod: AuthMethod.phone);
     _draftName ??= _nameGenerator.generate();
     _hasRegeneratedName = false;
@@ -79,7 +119,6 @@ class AuthController extends ChangeNotifier {
   }
 
   void confirmAnonymousName() {
-    // Locks the current draft; regenerate disabled after confirm via flow.
     notifyListeners();
   }
 
@@ -104,7 +143,8 @@ class AuthController extends ChangeNotifier {
       authMethod: pending.authMethod,
       createdAt: DateTime.now(),
     );
-    // Next step: firestore.collection('users').doc(profile.uid).set(profile.toMap());
+    // Persist (memory or Firestore adapter).
+    profileRepository.upsertProfile(profile);
     _profile = profile;
     _pending = null;
     notifyListeners();
@@ -126,6 +166,7 @@ class AuthController extends ChangeNotifier {
     _profile = profile;
     _pending = null;
     _consentAccepted = true;
+    profileRepository.upsertProfile(profile);
     notifyListeners();
   }
 }

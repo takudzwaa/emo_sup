@@ -8,6 +8,7 @@ import 'auth/auth_service.dart';
 import 'data/booking_store.dart';
 import 'data/membership_store.dart';
 import 'data/mood_store.dart';
+import 'domain/repositories/match_repository.dart';
 import 'firebase_bootstrap.dart';
 import 'models/user_profile.dart';
 import 'screens/auth/auth_flow.dart';
@@ -17,7 +18,12 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final services = await createAppServices();
-  runApp(EmoSupApp.fromServices(services));
+  final authController = AuthController(
+    authService: services.auth,
+    profileRepository: services.profiles,
+  );
+  await authController.tryRestoreSession();
+  runApp(EmoSupApp.fromServices(services, authController: authController));
 }
 
 class EmoSupApp extends StatelessWidget {
@@ -32,7 +38,10 @@ class EmoSupApp extends StatelessWidget {
         membershipStore = membershipStore ?? MembershipStore();
 
   /// Preferred production/prototype entry: wire stores from [AppServices].
-  factory EmoSupApp.fromServices(AppServices services) {
+  factory EmoSupApp.fromServices(
+    AppServices services, {
+    AuthController? authController,
+  }) {
     return EmoSupApp(
       services: services,
       moodStore: MoodStore(repository: services.moods),
@@ -41,7 +50,11 @@ class EmoSupApp extends StatelessWidget {
         listenerDirectory: services.listeners,
       ),
       membershipStore: MembershipStore(repository: services.membership),
-      authController: AuthController(authService: services.auth),
+      authController: authController ??
+          AuthController(
+            authService: services.auth,
+            profileRepository: services.profiles,
+          ),
     );
   }
 
@@ -77,6 +90,8 @@ class EmoSupApp extends StatelessWidget {
             moodStore: moodStore,
             bookingStore: bookingStore,
             membershipStore: membershipStore,
+            matchRepository: services?.match,
+            userId: profile.uid,
             anonymousUsername: profile.anonymousName,
           );
         },

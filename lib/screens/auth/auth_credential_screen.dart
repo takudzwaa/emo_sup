@@ -25,11 +25,12 @@ class AuthCredentialScreen extends StatefulWidget {
 }
 
 class _AuthCredentialScreenState extends State<AuthCredentialScreen> {
-  _AuthMode _mode = _AuthMode.email;
+  /// Phone-first for Zimbabwe pilot (PR 7); email remains secondary.
+  _AuthMode _mode = _AuthMode.phone;
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _phoneController = TextEditingController(text: '+263');
   final _otpController = TextEditingController();
 
   String? _verificationId;
@@ -151,14 +152,14 @@ class _AuthCredentialScreenState extends State<AuthCredentialScreen> {
               SegmentedButton<_AuthMode>(
                 segments: const [
                   ButtonSegment(
-                    value: _AuthMode.email,
-                    label: Text('Email'),
-                    icon: Icon(Icons.email_outlined, size: 18),
-                  ),
-                  ButtonSegment(
                     value: _AuthMode.phone,
                     label: Text('Phone'),
                     icon: Icon(Icons.phone_outlined, size: 18),
+                  ),
+                  ButtonSegment(
+                    value: _AuthMode.email,
+                    label: Text('Email'),
+                    icon: Icon(Icons.email_outlined, size: 18),
                   ),
                 ],
                 selected: {_mode},
@@ -233,7 +234,8 @@ class _AuthCredentialScreenState extends State<AuthCredentialScreen> {
                   ],
                   decoration: const InputDecoration(
                     labelText: 'Phone number',
-                    hintText: '+1 555 000 0000',
+                    hintText: '+263 77 123 4567',
+                    helperText: 'Zimbabwe country code +263 prefilled',
                   ),
                 ),
                 if (_codeSent) ...[
