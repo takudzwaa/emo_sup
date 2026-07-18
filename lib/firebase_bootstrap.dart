@@ -1,28 +1,96 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import 'app_services.dart';
 import 'auth/auth_service.dart';
 import 'auth/firebase_auth_service.dart';
+import 'config/app_flavor.dart';
+import 'data/repositories/memory_booking_repository.dart';
+import 'data/repositories/memory_chat_repository.dart';
+import 'data/repositories/memory_listener_directory_repository.dart';
+import 'data/repositories/memory_listener_ops_repository.dart';
+import 'data/repositories/memory_membership_repository.dart';
+import 'data/repositories/memory_mood_repository.dart';
+import 'data/repositories/memory_safety_repository.dart';
+import 'data/repositories/memory_user_profile_repository.dart';
 
-/// Tries real Firebase; falls back to prototype auth when no project is linked.
+/// Composition root: flavor + auth + domain repositories.
+///
+/// - [AppFlavor.prototype] (default): [PrototypeAuthService] + memory repos.
+/// - staging/prod: attempts Firebase.initializeApp; falls back to prototype
+///   stack if the project is not linked yet.
 ///
 /// Wire a project with:
 /// ```
 /// dart pub global activate flutterfire_cli
 /// flutterfire configure
+/// flutter run --dart-define=FLAVOR=staging
 /// ```
-/// then call `Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)`.
-Future<AuthService> createAuthService() async {
+///
+/// Crashlytics / FCM / App Check are intentionally **not** initialized here
+/// (later small PRs). Packages may be present for compile-time wiring only.
+Future<AppServices> createAppServices({
+  AppFlavor? flavorOverride,
+  AuthService? authOverride,
+}) async {
+  final flavor = flavorOverride ?? AppFlavorConfig.current;
+  debugPrint('App flavor: ${flavor.name}');
+
+  if (flavor == AppFlavor.prototype) {
+    return _memoryServices(
+      flavor: flavor,
+      auth: authOverride ?? PrototypeAuthService(),
+      firebaseReady: false,
+    );
+  }
+
+  // staging / prod path
   try {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp();
     }
     debugPrint('Firebase initialized — using FirebaseAuthService');
-    return FirebaseAuthService();
+    // Memory repos until Firestore-backed adapters land (later PRs).
+    // Auth is real so phone/email work against the linked project.
+    return _memoryServices(
+      flavor: flavor,
+      auth: authOverride ?? FirebaseAuthService(),
+      firebaseReady: true,
+    );
   } catch (e, st) {
     debugPrint(
-      'Firebase not configured ($e). Using PrototypeAuthService.\n$st',
+      'Firebase not configured ($e). Falling back to prototype stack.\n$st',
     );
-    return PrototypeAuthService();
+    return _memoryServices(
+      flavor: AppFlavor.prototype,
+      auth: authOverride ?? PrototypeAuthService(),
+      firebaseReady: false,
+    );
   }
+}
+
+/// Backward-compatible helper used by older call sites / tests.
+Future<AuthService> createAuthService() async {
+  final services = await createAppServices();
+  return services.auth;
+}
+
+AppServices _memoryServices({
+  required AppFlavor flavor,
+  required AuthService auth,
+  required bool firebaseReady,
+}) {
+  return AppServices(
+    flavor: flavor,
+    auth: auth,
+    profiles: MemoryUserProfileRepository(),
+    moods: MemoryMoodRepository(),
+    bookings: MemoryBookingRepository(),
+    listeners: MemoryListenerDirectoryRepository(),
+    membership: MemoryMembershipRepository(),
+    chats: MemoryChatRepository.withDemoSession(),
+    listenerOps: MemoryListenerOpsRepository(),
+    safety: MemorySafetyRepository(),
+    firebaseReady: firebaseReady,
+  );
 }

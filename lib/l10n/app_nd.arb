@@ -1,0 +1,21 @@
+{
+  "@@locale": "nd",
+  "appTitle": "Emo Sup",
+  "welcomeHeadline": "Othile wokukhuluma laye — ngasese",
+  "welcomeBody": "Indawo eyimfihlo labalaleli abaqeqeshiweyo. Akukho amaphrofayili abonwa ngumphakathi, akudingeki amabizo angempela.",
+  "welcomeTrustChip": "Kuyimfihlo futhi kuthembekile",
+  "getStartedAnonymously": "Qala ungavezanga ibizo lakho",
+  "needUrgentHelp": "Udinga usizo oluphuthumayo?",
+  "notTherapyDisclaimer": "Akusiyo i-therapy. Akusiyo isevisi ephuthumayo.",
+  "safetyAndPrivacy": "Ukuphepha & Ubumfihlo",
+  "privateConversation": "Inkulumo eyimfihlo",
+  "talkToSomeone": "Khuluma lothile",
+  "crisisResources": "Izinsiza zesikhathi esinzima",
+  "reportAndBlock": "Bika & Vimbela",
+  "deleteMyData": "Susa idatha yami",
+  "signInPrivately": "Ngena ngasese",
+  "listenerDashboardTitle": "I-dashboard yomalaleli",
+  "languageEnglish": "IsiNgisi",
+  "languageShona": "IsiShona",
+  "languageNdebele": "IsiNdebele"
+}

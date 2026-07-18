@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 
+import 'app_services.dart';
 import 'auth/auth_controller.dart';
 import 'auth/auth_service.dart';
 import 'data/booking_store.dart';
@@ -13,13 +16,8 @@ import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final authService = await createAuthService();
-  runApp(
-    EmoSupApp(
-      moodStore: MoodStore(),
-      authController: AuthController(authService: authService),
-    ),
-  );
+  final services = await createAppServices();
+  runApp(EmoSupApp.fromServices(services));
 }
 
 class EmoSupApp extends StatelessWidget {
@@ -29,22 +27,45 @@ class EmoSupApp extends StatelessWidget {
     required this.authController,
     BookingStore? bookingStore,
     MembershipStore? membershipStore,
+    this.services,
   })  : bookingStore = bookingStore ?? BookingStore(),
         membershipStore = membershipStore ?? MembershipStore();
+
+  /// Preferred production/prototype entry: wire stores from [AppServices].
+  factory EmoSupApp.fromServices(AppServices services) {
+    return EmoSupApp(
+      services: services,
+      moodStore: MoodStore(repository: services.moods),
+      bookingStore: BookingStore(
+        bookingRepository: services.bookings,
+        listenerDirectory: services.listeners,
+      ),
+      membershipStore: MembershipStore(repository: services.membership),
+      authController: AuthController(authService: services.auth),
+    );
+  }
 
   final MoodStore moodStore;
   final AuthController authController;
   final BookingStore bookingStore;
   final MembershipStore membershipStore;
+  final AppServices? services;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Emo Sup',
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       home: ListenableBuilder(
         listenable: authController,
         builder: (context, _) {

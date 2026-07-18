@@ -1,32 +1,38 @@
 import 'package:flutter/foundation.dart';
 
+import '../domain/repositories/listener_ops_repository.dart';
 import '../models/active_chat_summary.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
 import 'chat_store.dart';
+import 'repositories/memory_listener_ops_repository.dart';
 
-/// In-memory state for the Listener Dashboard prototype.
-///
-/// Later Firestore:
-/// ```
-/// listeners/{listenerId}                 // availability
-/// chats where listenerId == me           // active chats
-/// bookings where listenerId == me        // upcoming
-/// ```
+/// UI-facing Listener Dashboard store (ChangeNotifier façade).
 class ListenerDashboardStore extends ChangeNotifier {
   ListenerDashboardStore({
     this.listenerId = 'listener_amara_k',
     this.listenerDisplayName = 'Listener — Harbor',
-    this.availableNow = true,
+    bool availableNow = true,
     List<ActiveChatSummary>? activeChats,
     List<ListenerBookingSummary>? upcomingBookings,
-  })  : _activeChats = List<ActiveChatSummary>.from(
-          activeChats ?? defaultActiveChats(),
+    ListenerOpsRepository? repository,
+  })  : repository = repository ??
+            MemoryListenerOpsRepository(
+              listenerId: listenerId,
+              availableNow: availableNow,
+              activeChats: activeChats,
+              upcomingBookings: upcomingBookings,
+            ),
+        availableNow = availableNow,
+        _activeChats = List<ActiveChatSummary>.from(
+          activeChats ?? MemoryListenerOpsRepository.defaultActiveChats(),
         ),
         _upcomingBookings = List<ListenerBookingSummary>.from(
-          upcomingBookings ?? defaultUpcomingBookings(),
+          upcomingBookings ??
+              MemoryListenerOpsRepository.defaultUpcomingBookings(),
         );
 
+  final ListenerOpsRepository repository;
   final String listenerId;
   final String listenerDisplayName;
 
@@ -41,7 +47,6 @@ class ListenerDashboardStore extends ChangeNotifier {
     return list;
   }
 
-  /// Active chats count used as "sessions today" demo metric.
   int get sessionsToday => _activeChats.length;
 
   /// Stub earnings: \$8 per active session — demo only, not real payouts.
@@ -50,7 +55,7 @@ class ListenerDashboardStore extends ChangeNotifier {
   void setAvailableNow(bool value) {
     if (availableNow == value) return;
     availableNow = value;
-    // Next: firestore.collection('listeners').doc(listenerId).update({...});
+    repository.setAvailableNow(listenerId, value);
     notifyListeners();
   }
 
@@ -58,6 +63,7 @@ class ListenerDashboardStore extends ChangeNotifier {
     final i = _activeChats.indexWhere((c) => c.sessionId == sessionId);
     if (i == -1) return;
     _activeChats[i] = _activeChats[i].copyWith(unreadCount: 0);
+    repository.markChatRead(listenerId, sessionId);
     notifyListeners();
   }
 
@@ -94,78 +100,23 @@ class ListenerDashboardStore extends ChangeNotifier {
     );
   }
 
-  /// Escalation stub — real path would notify on-call / safety team.
-  ///
-  /// Hook point (later):
-  /// ```
-  /// // Cloud Function: escalateChat({ sessionId, listenerId, reason })
-  /// // → page on-call safety reviewer + flag chat in Firestore
-  /// // → optional: notify user that extra support is being arranged
-  /// ```
   Future<void> escalateChat({
     required String sessionId,
     String reason = 'listener_escalation',
   }) async {
-    // Prototype: no network. Mark as handled locally for UI feedback.
     debugPrint(
       'ESCALATE stub session=$sessionId listener=$listenerId reason=$reason',
     );
-    await Future<void>.delayed(const Duration(milliseconds: 150));
+    await repository.escalateChat(
+      sessionId: sessionId,
+      listenerId: listenerId,
+      reason: reason,
+    );
   }
 
-  static List<ActiveChatSummary> defaultActiveChats() {
-    final now = DateTime.now();
-    return [
-      ActiveChatSummary(
-        sessionId: 'session_active_01',
-        userId: 'user_quiet_river',
-        userAnonymousName: 'Quiet River',
-        lastMessagePreview:
-            "It's been a heavy week and I just needed somewhere quiet.",
-        lastMessageAt: now.subtract(const Duration(minutes: 4)),
-        unreadCount: 2,
-      ),
-      ActiveChatSummary(
-        sessionId: 'session_active_02',
-        userId: 'user_soft_meadow',
-        userAnonymousName: 'Soft Meadow',
-        lastMessagePreview: 'Thanks for listening earlier. Still here.',
-        lastMessageAt: now.subtract(const Duration(minutes: 28)),
-        unreadCount: 0,
-      ),
-      ActiveChatSummary(
-        sessionId: 'session_active_03',
-        userId: 'user_still_pine',
-        userAnonymousName: 'Still Pine',
-        lastMessagePreview: 'Work has been a lot. Not sure where to start.',
-        lastMessageAt: now.subtract(const Duration(hours: 1)),
-        unreadCount: 1,
-      ),
-    ];
-  }
+  static List<ActiveChatSummary> defaultActiveChats() =>
+      MemoryListenerOpsRepository.defaultActiveChats();
 
-  static List<ListenerBookingSummary> defaultUpcomingBookings() {
-    final now = DateTime.now();
-    return [
-      ListenerBookingSummary(
-        bookingId: 'lb_01',
-        userId: 'user_calm_brook',
-        userAnonymousName: 'Calm Brook',
-        // In the join window for prototype demos.
-        slotStart: now.subtract(const Duration(minutes: 2)),
-      ),
-      ListenerBookingSummary(
-        bookingId: 'lb_02',
-        userId: 'user_gentle_cloud',
-        userAnonymousName: 'Gentle Cloud',
-        slotStart: now.add(const Duration(hours: 3)),
-      ),
-      ListenerBookingSummary(
-        bookingId: 'lb_03',
-        userId: 'user_mellow_stone',
-        userAnonymousName: 'Mellow Stone',
-        slotStart: now.add(const Duration(days: 1, hours: 2)),
-      ),
-    ];
-  }
+  static List<ListenerBookingSummary> defaultUpcomingBookings() =>
+      MemoryListenerOpsRepository.defaultUpcomingBookings();
 }

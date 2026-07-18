@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../auth/auth_controller.dart';
 import '../../auth/auth_service.dart';
+import '../../widgets/pre_auth_safety_button.dart';
 import '../../widgets/soft_surface.dart';
 
 enum _AuthMode { email, phone }
@@ -127,6 +128,7 @@ class _AuthCredentialScreenState extends State<AuthCredentialScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sign in privately'),
+        actions: const [PreAuthSafetyButton()],
       ),
       body: SoftGradientBackground(
         child: SafeArea(

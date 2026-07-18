@@ -3,76 +3,52 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../domain/repositories/chat_repository.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
+import 'repositories/memory_chat_repository.dart';
 
-/// In-memory chat store for the prototype.
+/// UI-facing chat store (ChangeNotifier façade).
 ///
-/// Later: replace body of [sendMessage] / load with Firestore:
-/// ```
-/// chats/{sessionId}
-/// chats/{sessionId}/messages/{messageId}
-/// ```
+/// Persistence via [ChatRepository]. Mock listener replies stay here for
+/// the prototype flavor only.
 class ChatStore extends ChangeNotifier {
   ChatStore({
     ChatSession? session,
     List<ChatMessage>? seedMessages,
     this.mockListenerReplies = true,
     String? actingAsId,
-  })  : session = session ?? ChatStore.defaultSession(),
+    ChatRepository? repository,
+  })  : repository = repository ??
+            MemoryChatRepository.withDemoSession(
+              session: session,
+              seedMessages: seedMessages,
+            ),
+        session = session ?? MemoryChatRepository.defaultSession(),
         _messages = List<ChatMessage>.from(
-          seedMessages ?? ChatStore.defaultSeedMessages(),
+          seedMessages ?? MemoryChatRepository.defaultSeedMessages(),
         ),
         actingAsId = actingAsId ??
-            (session ?? ChatStore.defaultSession()).userId;
+            (session ?? MemoryChatRepository.defaultSession()).userId {
+    // Keep memory repo in sync when custom session/messages were passed.
+    final repo = this.repository;
+    if (repo is MemoryChatRepository) {
+      repo.seedSession(this.session, messages: _messages);
+    }
+  }
+
+  final ChatRepository repository;
 
   /// Who sends messages from this client (user or listener uid).
   final String actingAsId;
 
-  /// Demo session: current user + one assigned listener.
-  static ChatSession defaultSession() {
-    return ChatSession(
-      id: 'session_demo_001',
-      userId: 'user_quiet_river',
-      listenerId: 'listener_amara_k',
-      startedAt: DateTime.now().subtract(const Duration(minutes: 12)),
-      listenerDisplayName: 'Listener — Amara K.',
-    );
-  }
+  /// Demo session helper (tests / screens).
+  static ChatSession defaultSession() => MemoryChatRepository.defaultSession();
 
-  /// Static seed conversation (no backend / no AI).
-  static List<ChatMessage> defaultSeedMessages() {
-    final now = DateTime.now();
-    return [
-      ChatMessage(
-        id: 'msg_001',
-        senderId: 'listener_amara_k',
-        text:
-            "Hi — I'm here to listen. This is a private space; share only "
-            "what feels comfortable.",
-        timestamp: now.subtract(const Duration(minutes: 11)),
-        status: MessageStatus.read,
-      ),
-      ChatMessage(
-        id: 'msg_002',
-        senderId: 'user_quiet_river',
-        text: "Thanks. It's been a heavy week and I just needed somewhere quiet.",
-        timestamp: now.subtract(const Duration(minutes: 9)),
-        status: MessageStatus.read,
-      ),
-      ChatMessage(
-        id: 'msg_003',
-        senderId: 'listener_amara_k',
-        text:
-            "That makes sense. I'm here with you — take your time. "
-            "What's been weighing on you most?",
-        timestamp: now.subtract(const Duration(minutes: 8)),
-        status: MessageStatus.read,
-      ),
-    ];
-  }
+  static List<ChatMessage> defaultSeedMessages() =>
+      MemoryChatRepository.defaultSeedMessages();
 
-  /// Canned listener lines (supportive, non-clinical). Rotated, not AI-generated.
+  /// Canned listener lines (supportive, non-clinical). Rotated, not AI.
   static const List<String> _cannedReplies = [
     "I'm glad you shared that. I'm still here.",
     "That sounds like a lot to carry. Thank you for trusting this space.",
@@ -105,13 +81,15 @@ class ChatStore extends ChangeNotifier {
     if (index == -1) return;
     if (_messages[index].status == status) return;
     _messages[index] = _messages[index].copyWith(status: status);
+    repository.updateMessageStatus(
+      sessionId: session.id,
+      messageId: messageId,
+      status: status,
+    );
     notifyListeners();
   }
 
   /// Sends a message as [actingAsId].
-  /// Next step: `chats/{sessionId}/messages/{messageId}` write.
-  ///
-  /// Prototype delivery: sending → sent → delivered via short timers.
   Future<void> sendMessage(String text) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || !session.isActive) return;
@@ -127,7 +105,14 @@ class ChatStore extends ChangeNotifier {
     _messages.add(sending);
     notifyListeners();
 
-    // Simulate network ack then delivery (prototype; no real backend).
+    await repository.sendMessage(
+      sessionId: session.id,
+      senderId: actingAsId,
+      text: trimmed,
+      clientMessageId: localId,
+    );
+
+    // Prototype delivery: sending → sent → delivered via short timers.
     _statusTimers.add(
       Timer(const Duration(milliseconds: 150), () {
         _setMessageStatus(localId, MessageStatus.sent);
@@ -139,7 +124,6 @@ class ChatStore extends ChangeNotifier {
       }),
     );
 
-    // Auto-replies only when the end-user is chatting (prototype mock).
     if (mockListenerReplies && !isActingAsListener) {
       _scheduleMockListenerReply();
     }
@@ -154,15 +138,25 @@ class ChatStore extends ChangeNotifier {
     _replyTimer = Timer(Duration(milliseconds: delayMs), () {
       _listenerTyping = false;
       final reply = _cannedReplies[_random.nextInt(_cannedReplies.length)];
-      _messages.add(
-        ChatMessage(
-          id: 'msg_listener_${++_idCounter}',
+      final message = ChatMessage(
+        id: 'msg_listener_${++_idCounter}',
+        senderId: session.listenerId,
+        text: reply,
+        timestamp: DateTime.now(),
+        status: MessageStatus.delivered,
+      );
+      _messages.add(message);
+      final repo = repository;
+      if (repo is MemoryChatRepository) {
+        repo.appendMessage(session.id, message);
+      } else {
+        repository.sendMessage(
+          sessionId: session.id,
           senderId: session.listenerId,
           text: reply,
-          timestamp: DateTime.now(),
-          status: MessageStatus.delivered,
-        ),
-      );
+          clientMessageId: message.id,
+        );
+      }
       notifyListeners();
     });
   }
@@ -179,6 +173,7 @@ class ChatStore extends ChangeNotifier {
     _cancelStatusTimers();
     _listenerTyping = false;
     session = session.copyWith(endedAt: DateTime.now());
+    repository.endSession(session.id);
     notifyListeners();
   }
 

@@ -39,7 +39,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Listener — Amara K.'), findsOneWidget);
-    expect(find.text('Encrypted'), findsOneWidget);
+    expect(find.text('Private conversation'), findsOneWidget);
   });
 
   testWidgets('Settings opens Safety & Privacy hub', (tester) async {

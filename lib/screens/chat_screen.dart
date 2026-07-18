@@ -259,8 +259,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 3),
+                  // Honest cue until real E2E ships (PR 4 / design doc).
                   const TrustChip(
-                    label: 'Encrypted',
+                    label: 'Private conversation',
                     compact: true,
                   ),
                 ],

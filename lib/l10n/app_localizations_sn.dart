@@ -1,0 +1,66 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for Shona (`sn`).
+class AppLocalizationsSn extends AppLocalizations {
+  AppLocalizationsSn([String locale = 'sn']) : super(locale);
+
+  @override
+  String get appTitle => 'Emo Sup';
+
+  @override
+  String get welcomeHeadline => 'Mumwe wekutaura naye — muchivande';
+
+  @override
+  String get welcomeBody =>
+      'Nzvimbo yakavanzika nevateereri vakadzidziswa. Hapana maprofile eruzhinji, hapana mazita echokwadi anodiwa.';
+
+  @override
+  String get welcomeTrustChip => 'Zvakavanzika uye zvine chivimbo';
+
+  @override
+  String get getStartedAnonymously => 'Tanga usingaratidzi zita rako';
+
+  @override
+  String get needUrgentHelp => 'Unoda rubatsiro rwekukurumidza?';
+
+  @override
+  String get notTherapyDisclaimer =>
+      'Haisi therapy. Haisi sevhisi yekukurumidza.';
+
+  @override
+  String get safetyAndPrivacy => 'Kuchengetedza & Kuvanzika';
+
+  @override
+  String get privateConversation => 'Hurukuro yakavanzika';
+
+  @override
+  String get talkToSomeone => 'Taura nemumwe';
+
+  @override
+  String get crisisResources => 'Zvinhu zvekubatsira pakati pechinetso';
+
+  @override
+  String get reportAndBlock => 'Taurira & Dzivirira';
+
+  @override
+  String get deleteMyData => 'Dzima data rangu';
+
+  @override
+  String get signInPrivately => 'Pinda muchivande';
+
+  @override
+  String get listenerDashboardTitle => 'Dashboard yemuteereri';
+
+  @override
+  String get languageEnglish => 'Chirungu';
+
+  @override
+  String get languageShona => 'ChiShona';
+
+  @override
+  String get languageNdebele => 'ChiNdebele';
+}

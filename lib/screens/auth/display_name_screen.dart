@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../auth/auth_controller.dart';
 import '../../widgets/anonymous_avatar.dart';
+import '../../widgets/pre_auth_safety_button.dart';
 import '../../widgets/soft_surface.dart';
 
 /// System-generated anonymous name; user may regenerate once, then confirm.
@@ -77,6 +78,7 @@ class _DisplayNameScreenState extends State<DisplayNameScreen> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Your anonymous name'),
+            actions: const [PreAuthSafetyButton()],
           ),
           body: SoftGradientBackground(
             child: SafeArea(

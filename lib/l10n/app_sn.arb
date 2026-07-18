@@ -1,0 +1,21 @@
+{
+  "@@locale": "sn",
+  "appTitle": "Emo Sup",
+  "welcomeHeadline": "Mumwe wekutaura naye — muchivande",
+  "welcomeBody": "Nzvimbo yakavanzika nevateereri vakadzidziswa. Hapana maprofile eruzhinji, hapana mazita echokwadi anodiwa.",
+  "welcomeTrustChip": "Zvakavanzika uye zvine chivimbo",
+  "getStartedAnonymously": "Tanga usingaratidzi zita rako",
+  "needUrgentHelp": "Unoda rubatsiro rwekukurumidza?",
+  "notTherapyDisclaimer": "Haisi therapy. Haisi sevhisi yekukurumidza.",
+  "safetyAndPrivacy": "Kuchengetedza & Kuvanzika",
+  "privateConversation": "Hurukuro yakavanzika",
+  "talkToSomeone": "Taura nemumwe",
+  "crisisResources": "Zvinhu zvekubatsira pakati pechinetso",
+  "reportAndBlock": "Taurira & Dzivirira",
+  "deleteMyData": "Dzima data rangu",
+  "signInPrivately": "Pinda muchivande",
+  "listenerDashboardTitle": "Dashboard yemuteereri",
+  "languageEnglish": "Chirungu",
+  "languageShona": "ChiShona",
+  "languageNdebele": "ChiNdebele"
+}

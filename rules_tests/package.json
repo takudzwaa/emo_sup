@@ -1,0 +1,18 @@
+{
+  "name": "emo-sup-firestore-rules-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Firestore security rules unit tests (PR 2 baseline)",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-emo-sup \"node --test test/*.test.js\"",
+    "test:local": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.6.0",
+    "firebase-tools": "^14.1.0"
+  }
+}

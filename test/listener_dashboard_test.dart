@@ -65,7 +65,7 @@ void main() {
     expect(find.byType(ChatScreen), findsOneWidget);
     // Peer name is the user (listener perspective).
     expect(find.text('Quiet River'), findsWidgets);
-    expect(find.text('Encrypted'), findsOneWidget);
+    expect(find.text('Private conversation'), findsOneWidget);
     expect(find.text('Escalate'), findsWidgets);
     expect(find.byType(MessageBubble), findsWidgets);
   });

@@ -21,7 +21,7 @@ void main() {
     );
 
     expect(find.text('Listener — Amara K.'), findsWidgets);
-    expect(find.text('Encrypted'), findsOneWidget);
+    expect(find.text('Private conversation'), findsOneWidget);
     expect(find.text('Need urgent help?'), findsOneWidget);
     expect(find.byIcon(Icons.lock_outline_rounded), findsWidgets);
     expect(
@@ -162,7 +162,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Listener — Amara K.'), findsWidgets);
-    expect(find.text('Encrypted'), findsOneWidget);
+    expect(find.text('Private conversation'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
   });
 

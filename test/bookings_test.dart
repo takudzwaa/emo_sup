@@ -48,11 +48,13 @@ void main() {
     );
 
     expect(find.text('All'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilterChip, 'Spanish'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Shona'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Listener — Moss'), findsOneWidget);
-    expect(find.text('Listener — Harbor'), findsNothing);
+    // Harbor and Cedar speak Shona; Moss is English + Ndebele only.
+    expect(find.text('Listener — Harbor'), findsOneWidget);
+    expect(find.text('Listener — Cedar'), findsOneWidget);
+    expect(find.text('Listener — Moss'), findsNothing);
   });
 
   testWidgets('Tapping listener opens slot picker', (tester) async {

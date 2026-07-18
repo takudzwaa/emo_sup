@@ -18,7 +18,7 @@ void main() {
     expect(find.text('How your messages are protected'), findsOneWidget);
     expect(find.text('Terms of Service'), findsOneWidget);
     expect(find.text('Privacy Policy'), findsOneWidget);
-    expect(find.text('Encrypted'), findsOneWidget);
+    expect(find.text('Private conversation'), findsOneWidget);
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
   });
 

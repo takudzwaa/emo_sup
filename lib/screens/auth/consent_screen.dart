@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../auth/auth_controller.dart';
 import '../../auth/auth_service.dart';
+import '../../widgets/pre_auth_safety_button.dart';
 import '../../widgets/soft_surface.dart';
 import '../legal_stub_screen.dart';
 
@@ -69,6 +70,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Before you continue'),
+        actions: const [PreAuthSafetyButton()],
       ),
       body: SoftGradientBackground(
         child: SafeArea(

@@ -33,6 +33,13 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Node (rules unit tests)
+rules_tests/node_modules/
+rules_tests/firebase-debug.log
+rules_tests/firestore-debug.log
+*.log
+.firebase/
+
 # Symbolication related
 app.*.symbols
 

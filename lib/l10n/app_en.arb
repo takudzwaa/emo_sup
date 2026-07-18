@@ -1,0 +1,24 @@
+{
+  "@@locale": "en",
+  "appTitle": "Emo Sup",
+  "@appTitle": {
+    "description": "Application title"
+  },
+  "welcomeHeadline": "Someone to talk to — privately",
+  "welcomeBody": "A confidential space with trained listeners. No public profiles, no real names required.",
+  "welcomeTrustChip": "Private & confidential",
+  "getStartedAnonymously": "Get started anonymously",
+  "needUrgentHelp": "Need urgent help?",
+  "notTherapyDisclaimer": "Not therapy. Not an emergency service.",
+  "safetyAndPrivacy": "Safety & Privacy",
+  "privateConversation": "Private conversation",
+  "talkToSomeone": "Talk to Someone",
+  "crisisResources": "Crisis resources",
+  "reportAndBlock": "Report & block",
+  "deleteMyData": "Delete my data",
+  "signInPrivately": "Sign in privately",
+  "listenerDashboardTitle": "Listener dashboard",
+  "languageEnglish": "English",
+  "languageShona": "Shona",
+  "languageNdebele": "Ndebele"
+}

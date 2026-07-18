@@ -1,31 +1,42 @@
 import 'package:flutter/foundation.dart';
 
+import '../domain/repositories/booking_repository.dart';
+import '../domain/repositories/listener_directory_repository.dart';
 import '../models/booking.dart';
 import '../models/listener_profile.dart';
 import '../models/payment_method.dart';
+import 'repositories/memory_booking_repository.dart';
+import 'repositories/memory_listener_directory_repository.dart';
 
-/// In-memory bookings + mock availability for the prototype.
+/// UI-facing bookings + listener directory (ChangeNotifier façade).
 ///
-/// Later Firestore:
-/// ```
-/// bookings/{bookingId}
-/// listeners/{listenerId}
-/// ```
+/// I/O via [BookingRepository] + [ListenerDirectoryRepository].
 class BookingStore extends ChangeNotifier {
   BookingStore({
     List<ListenerProfile>? listeners,
     List<Booking>? seedBookings,
     this.currentUserId = 'user_quiet_river',
-  })  : _listeners = List.unmodifiable(
-          listeners ?? BookingStore.defaultListeners(),
-        ),
-        _bookings = List<Booking>.from(
-          seedBookings ?? BookingStore.defaultSeedBookings(),
-        );
+    BookingRepository? bookingRepository,
+    ListenerDirectoryRepository? listenerDirectory,
+  })  : bookingRepository = bookingRepository ??
+            MemoryBookingRepository(seedBookings: seedBookings),
+        listenerDirectory = listenerDirectory ??
+            MemoryListenerDirectoryRepository(listeners: listeners) {
+    // Sync seed for UI: prefer injected lists, else memory defaults.
+    _listeners = List.unmodifiable(
+      listeners ?? MemoryListenerDirectoryRepository.defaultListeners(),
+    );
+    _bookings = List<Booking>.from(
+      seedBookings ?? MemoryBookingRepository.defaultSeedBookings(),
+    );
+  }
 
   final String currentUserId;
-  final List<ListenerProfile> _listeners;
-  final List<Booking> _bookings;
+  final BookingRepository bookingRepository;
+  final ListenerDirectoryRepository listenerDirectory;
+
+  late final List<ListenerProfile> _listeners;
+  late List<Booking> _bookings;
   int _idCounter = 10;
 
   List<ListenerProfile> get listeners => _listeners;
@@ -51,80 +62,28 @@ class BookingStore extends ChangeNotifier {
     return null;
   }
 
-  static List<ListenerProfile> defaultListeners() {
-    return const [
-      ListenerProfile(
-        id: 'listener_harbor',
-        displayName: 'Listener — Harbor',
-        bio:
-            'Calm presence for late-night overthinking. I listen without rushing you.',
-        languages: ['English'],
-      ),
-      ListenerProfile(
-        id: 'listener_moss',
-        displayName: 'Listener — Moss',
-        bio:
-            'Here for academic pressure and quiet company. Soft check-ins, no judgment.',
-        languages: ['English', 'Spanish'],
-      ),
-      ListenerProfile(
-        id: 'listener_cedar',
-        displayName: 'Listener — Cedar',
-        bio:
-            'Steady support when work stress piles up. Happy to sit with hard days.',
-        languages: ['English', 'French'],
-      ),
-      ListenerProfile(
-        id: 'listener_lantern',
-        displayName: 'Listener — Lantern',
-        bio:
-            'Warm companion for lonely evenings. Share as little or as much as you like.',
-        languages: ['English', 'Mandarin'],
-        tier: ListenerTier.premium,
-      ),
-    ];
-  }
+  /// Kept for tests / seed overrides that still call the old static name.
+  static List<ListenerProfile> defaultListeners() =>
+      MemoryListenerDirectoryRepository.defaultListeners();
 
-  static List<Booking> defaultSeedBookings() {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    final slot = DateTime(
-      tomorrow.year,
-      tomorrow.month,
-      tomorrow.day,
-      14,
-    );
-    return [
-      Booking(
-        id: 'booking_seed_01',
-        userId: 'user_quiet_river',
-        listenerId: 'listener_harbor',
-        slotStart: slot,
-        status: BookingStatus.confirmed,
-      ),
-    ];
-  }
+  static List<Booking> defaultSeedBookings() =>
+      MemoryBookingRepository.defaultSeedBookings();
 
   /// Mock availability: next [days] days × 3 blocks (10:00, 14:00, 19:00).
-  /// Some evening slots tagged Premium (non-blocking in the prototype).
   List<TimeSlot> slotsForListener(String listenerId, {int days = 7}) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final hours = [10, 14, 19];
     final slots = <TimeSlot>[];
-
-    // Seed variation so listeners don't look identical.
     final offset = listenerId.hashCode.abs() % 3;
 
     for (var d = 0; d < days; d++) {
-      final day = today.add(Duration(days: d + 1)); // start tomorrow
+      final day = today.add(Duration(days: d + 1));
       for (var h = 0; h < hours.length; h++) {
-        // Skip one block per listener for a natural sparse feel.
         if ((h + d + offset) % 5 == 0) continue;
-
         final start = DateTime(day.year, day.month, day.day, hours[h]);
         if (start.isBefore(now)) continue;
 
-        // Already booked?
         final taken = _bookings.any(
           (b) =>
               b.listenerId == listenerId &&
@@ -140,20 +99,17 @@ class BookingStore extends ChangeNotifier {
     return slots;
   }
 
-  /// Earliest open slot for card preview, or null if none.
   TimeSlot? nextAvailableSlot(String listenerId) {
     final slots = slotsForListener(listenerId);
     return slots.isEmpty ? null : slots.first;
   }
 
-  /// Whether this listener or slot requires premium access.
   bool isPremiumAccess({required String listenerId, required TimeSlot slot}) {
     final listener = listenerById(listenerId);
     return slot.requiresPremium || (listener?.isPremium ?? false);
   }
 
-  /// Confirms a booking locally.
-  /// Next step: `bookings/{bookingId}` write.
+  /// Confirms a booking locally (prototype). Production: CF checkout.
   Booking confirmBooking({
     required String listenerId,
     required DateTime slotStart,
@@ -176,6 +132,16 @@ class BookingStore extends ChangeNotifier {
       paymentStatus: paymentStatus,
     );
     _bookings.add(booking);
+    bookingRepository.confirmBooking(
+      userId: currentUserId,
+      listenerId: listenerId,
+      slotStart: slotStart,
+      priceCents: priceCents,
+      currency: currency,
+      planApplied: planApplied,
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
+    );
     notifyListeners();
     return booking;
   }
@@ -187,6 +153,10 @@ class BookingStore extends ChangeNotifier {
     final index = _bookings.indexWhere((b) => b.id == bookingId);
     if (index == -1) return;
     _bookings[index] = _bookings[index].copyWith(slotStart: newSlotStart);
+    bookingRepository.rescheduleBooking(
+      bookingId: bookingId,
+      newSlotStart: newSlotStart,
+    );
     notifyListeners();
   }
 
@@ -196,6 +166,7 @@ class BookingStore extends ChangeNotifier {
     _bookings[index] = _bookings[index].copyWith(
       status: BookingStatus.cancelled,
     );
+    bookingRepository.cancelBooking(bookingId);
     notifyListeners();
   }
 }

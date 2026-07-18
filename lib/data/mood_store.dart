@@ -1,13 +1,20 @@
 import 'package:flutter/foundation.dart';
 
+import '../domain/repositories/mood_repository.dart';
 import '../models/mood_entry.dart';
+import 'repositories/memory_mood_repository.dart';
 
-/// Local in-memory mood store for the prototype.
+/// UI-facing mood store (ChangeNotifier façade).
 ///
-/// Swap the body of [add] / [latest] for Firestore reads/writes later
-/// without changing call sites on the Home screen.
+/// I/O goes through [MoodRepository]. Default is [MemoryMoodRepository].
 class MoodStore extends ChangeNotifier {
-  MoodStore();
+  MoodStore({
+    MoodRepository? repository,
+    this.userId = 'local_user',
+  }) : repository = repository ?? MemoryMoodRepository();
+
+  final MoodRepository repository;
+  final String userId;
 
   final List<MoodEntry> _entries = <MoodEntry>[];
 
@@ -20,13 +27,15 @@ class MoodStore extends ChangeNotifier {
     assert(value >= 1 && value <= 5, 'Mood value must be between 1 and 5');
     final entry = MoodEntry(timestamp: DateTime.now(), value: value);
     _entries.add(entry);
-    // Next step: await firestore.collection('mood_entries').add(entry.toMap());
+    // Fire-and-forget I/O; memory repo is sync-fast. Firestore will await.
+    repository.add(userId: userId, value: value, timestamp: entry.timestamp);
     notifyListeners();
     return entry;
   }
 
   void clear() {
     _entries.clear();
+    repository.clear(userId);
     notifyListeners();
   }
 }

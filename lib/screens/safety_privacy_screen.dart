@@ -863,7 +863,7 @@ class _MessageProtectionBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Same lock language as Chat app bar
+        // Same lock language as Chat app bar — honest until real E2E ships.
         Row(
           children: [
             Icon(
@@ -873,7 +873,7 @@ class _MessageProtectionBody extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              'Encrypted',
+              'Private conversation',
               style: textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: scheme.onSurface.withValues(alpha: 0.6),
@@ -884,16 +884,17 @@ class _MessageProtectionBody extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           'Your 1:1 chats are private conversations between you and your '
-          'assigned listener. In the product, messages are protected so that '
-          'people outside your chat cannot read them.',
+          'assigned listener. Only people in the chat should see your messages. '
+          'There are no public profiles, public message feeds, or open forums.',
           style: textTheme.bodyMedium?.copyWith(height: 1.45),
         ),
         const SizedBox(height: 10),
         Text(
-          'The lock icon and “Encrypted” label you see in chat are the same '
-          'cue used here — a reminder that this space is confidential. '
-          '(In this prototype the cue is visual; full end-to-end cryptography '
-          'is wired when we connect the live backend.)',
+          'The lock icon and “Private conversation” label you see in chat are '
+          'a confidentiality cue — not a claim of full end-to-end encryption. '
+          'Today, messages use transport security (HTTPS) and server storage '
+          'protection. True E2E cryptography may come later; until then we use '
+          'honest wording instead of “encrypted.”',
           style: textTheme.bodyMedium?.copyWith(
             height: 1.45,
             color: scheme.onSurface.withValues(alpha: 0.8),
@@ -901,7 +902,7 @@ class _MessageProtectionBody extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          'There are no public profiles, public message feeds, or open forums.',
+          'You can report, block, or delete your data anytime from this hub.',
           style: textTheme.bodyMedium?.copyWith(height: 1.45),
         ),
       ],

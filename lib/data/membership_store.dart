@@ -1,10 +1,20 @@
 import 'package:flutter/foundation.dart';
 
+import '../domain/repositories/membership_repository.dart';
 import '../models/membership.dart';
+import 'repositories/memory_membership_repository.dart';
 
+/// UI-facing membership store (ChangeNotifier façade).
 class MembershipStore extends ChangeNotifier {
-  MembershipStore({Membership? initial})
-      : _membership = initial ?? const Membership();
+  MembershipStore({
+    Membership? initial,
+    MembershipRepository? repository,
+    this.userId = 'local_user',
+  })  : repository = repository ?? MemoryMembershipRepository(),
+        _membership = initial ?? const Membership();
+
+  final MembershipRepository repository;
+  final String userId;
 
   Membership _membership;
 
@@ -17,11 +27,13 @@ class MembershipStore extends ChangeNotifier {
       planId: planId,
       renewsAt: DateTime.now().add(const Duration(days: 30)),
     );
+    repository.activatePlan(userId: userId, planId: planId);
     notifyListeners();
   }
 
   void clearPlanForTesting() {
     _membership = const Membership();
+    repository.clearPlan(userId);
     notifyListeners();
   }
 }
