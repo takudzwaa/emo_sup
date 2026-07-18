@@ -41,6 +41,9 @@ class AppLocalizationsNd extends AppLocalizations {
   String get talkToSomeone => 'Khuluma lothile';
 
   @override
+  String get connecting => 'Iyaxhuma…';
+
+  @override
   String get crisisResources => 'Izinsiza zesikhathi esinzima';
 
   @override
@@ -63,4 +66,62 @@ class AppLocalizationsNd extends AppLocalizations {
 
   @override
   String get languageNdebele => 'IsiNdebele';
+
+  @override
+  String get bookASession => 'Bhuka iseshini';
+
+  @override
+  String get tryAgainLater => 'Zama futhi emuva kwesikhathi';
+
+  @override
+  String get matchingPaused => 'Ukuxhuma kumisiwe';
+
+  @override
+  String get noListenersAvailable => 'Abakho abalaleli okwamanje';
+
+  @override
+  String get freeChatsUsed => 'Izingxoxo zamahhala zeviki ziphelile';
+
+  @override
+  String get confirmBooking => 'Qinisekisa ukubhuka';
+
+  @override
+  String get chooseATime => 'Khetha isikhathi';
+
+  @override
+  String get online => 'Ku-inthanethi';
+
+  @override
+  String get away => 'Akekho';
+
+  @override
+  String get activeChats => 'Izingxoxo ezisebenzayo';
+
+  @override
+  String get upcomingBookings => 'Amabhuku azayo';
+
+  @override
+  String get openChat => 'Vula ingxoxo';
+
+  @override
+  String get submitReport => 'Thumela umbiko';
+
+  @override
+  String get blockListener => 'Vimbela lomalaleli';
+
+  @override
+  String get discreetMode => 'Indlela eyimfihlo';
+
+  @override
+  String get appLock => 'Ukukhiya i-app';
+
+  @override
+  String get unlock => 'Vula';
+
+  @override
+  String get enterPin => 'Faka i-PIN';
+
+  @override
+  String get volunteerPilot =>
+      'I-pilot yamavolontiya — akukho imali eboniswayo.';
 }

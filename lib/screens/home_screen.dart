@@ -11,6 +11,7 @@ import '../domain/repositories/match_repository.dart';
 import '../domain/repositories/safety_repository.dart';
 import '../models/chat_message.dart';
 import '../models/mood_entry.dart';
+import '../services/analytics_service.dart';
 import '../utils/date_format.dart';
 import '../widgets/anonymous_avatar.dart';
 import '../widgets/mood_check_in.dart';
@@ -32,6 +33,7 @@ class HomeScreen extends StatefulWidget {
     this.featureFlags,
     this.safetyRepository,
     this.discreetSettings,
+    this.analytics,
     this.userId = 'user_quiet_river',
     this.anonymousUsername = 'Quiet River',
   });
@@ -46,6 +48,7 @@ class HomeScreen extends StatefulWidget {
   final FeatureFlags? featureFlags;
   final SafetyRepository? safetyRepository;
   final DiscreetSettings? discreetSettings;
+  final AnalyticsService? analytics;
 
   final String userId;
 
@@ -103,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openSafetyHub() {
+    widget.analytics?.logEvent('safety_opened');
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => SafetyPrivacyScreen(
@@ -118,6 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_matching) return;
     final flags = widget.featureFlags;
     if (flags != null && !flags.matchEnabled) {
+      await widget.analytics?.logEvent('match_disabled');
       await _showMatchEmptyState(
         title: 'Matching is paused',
         body:
@@ -127,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     setState(() => _matching = true);
+    await widget.analytics?.logEvent('match_requested', {'mode': 'async'});
     try {
       final result = await _match.requestMatch(
         userId: widget.userId,
@@ -139,6 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       switch (result) {
         case MatchSuccess(:final session):
+          await widget.analytics?.logEvent('match_connected');
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) => ChatScreen(
@@ -161,6 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         case MatchQuotaExceeded(:final used, :final limit):
+          await widget.analytics?.logEvent('match_quota_exceeded');
           await _showMatchEmptyState(
             title: 'Free chats used for this week',
             body:
@@ -169,6 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 'or try again later. Safety is always free.',
           );
         case MatchNoCapacity():
+          await widget.analytics?.logEvent('match_no_capacity');
           await _showMatchEmptyState(
             title: 'No listeners available right now',
             body:
@@ -176,6 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 'resources if you need urgent help, or try again soon.',
           );
         case MatchDisabled():
+          await widget.analytics?.logEvent('match_disabled');
           await _showMatchEmptyState(
             title: 'Matching is paused',
             body:

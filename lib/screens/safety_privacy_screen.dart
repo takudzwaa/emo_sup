@@ -82,8 +82,13 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCrisisPack();
+    if (widget.crisisPackOverride != null) {
+      _crisisPack = widget.crisisPackOverride;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.crisisPackOverride == null) {
+        _loadCrisisPack();
+      }
       _scrollToInitialSection();
     });
   }
@@ -94,17 +99,28 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
       return;
     }
     try {
-      final pack = await CrisisPackLoader.loadEnZw();
+      final lang = Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
+      final pack = await CrisisPackLoader.loadForLocale(lang);
       if (!mounted) return;
       setState(() {
         _crisisPack = pack;
         _crisisLoadError = null;
       });
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _crisisLoadError = e.toString();
-      });
+      // Fallback EN if locale pack missing.
+      try {
+        final pack = await CrisisPackLoader.loadEnZw();
+        if (!mounted) return;
+        setState(() {
+          _crisisPack = pack;
+          _crisisLoadError = null;
+        });
+      } catch (e2) {
+        if (!mounted) return;
+        setState(() {
+          _crisisLoadError = e2.toString();
+        });
+      }
     }
   }
 
@@ -528,7 +544,7 @@ class _CrisisSectionBody extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Zimbabwe EN pack v${pack.version} · partner-reviewed metadata present',
+          'Zimbabwe ${pack.locale.toUpperCase()} pack v${pack.version} · partner-reviewed metadata present',
           style: textTheme.bodySmall?.copyWith(
             color: scheme.onSurface.withValues(alpha: 0.5),
           ),

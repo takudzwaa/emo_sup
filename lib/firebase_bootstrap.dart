@@ -21,6 +21,8 @@ import 'data/repositories/memory_safety_repository.dart';
 import 'data/repositories/memory_user_profile_repository.dart';
 import 'domain/repositories/notification_service.dart';
 import 'domain/repositories/payment_gateway.dart';
+import 'services/analytics_service.dart';
+import 'services/app_check_service.dart';
 import 'services/membership_activation_service.dart';
 import 'services/payment_service.dart';
 import 'services/staging_mobile_money_gateway.dart';
@@ -38,9 +40,8 @@ import 'services/staging_mobile_money_gateway.dart';
 /// flutter run --dart-define=FLAVOR=staging
 /// ```
 ///
-/// Crashlytics / real FCM / App Check init stay deferred until a Firebase
-/// project is linked. [MemoryNotificationService] provides the PR 12 policy
-/// surface (no chat bodies) without requiring `firebase_messaging` at runtime.
+/// Crashlytics / real FCM stay deferred until a Firebase project is linked.
+/// App Check is activated via [AppCheckService] for staging/prod flavors.
 Future<AppServices> createAppServices({
   AppFlavor? flavorOverride,
   AuthService? authOverride,
@@ -49,11 +50,13 @@ Future<AppServices> createAppServices({
   debugPrint('App flavor: ${flavor.name}');
 
   if (flavor == AppFlavor.prototype) {
-    return _memoryServices(
+    final services = await _memoryServices(
       flavor: flavor,
       auth: authOverride ?? PrototypeAuthService(),
       firebaseReady: false,
     );
+    await services.appCheck.activate();
+    return services;
   }
 
   // staging / prod path
@@ -62,22 +65,24 @@ Future<AppServices> createAppServices({
       await Firebase.initializeApp();
     }
     debugPrint('Firebase initialized — using FirebaseAuthService');
-    // Memory repos until Firestore-backed adapters land (later PRs).
-    // Auth is real so phone/email work against the linked project.
-    return _memoryServices(
+    final services = await _memoryServices(
       flavor: flavor,
       auth: authOverride ?? FirebaseAuthService(),
       firebaseReady: true,
     );
+    await services.appCheck.activate();
+    return services;
   } catch (e, st) {
     debugPrint(
       'Firebase not configured ($e). Falling back to prototype stack.\n$st',
     );
-    return _memoryServices(
+    final services = await _memoryServices(
       flavor: AppFlavor.prototype,
       auth: authOverride ?? PrototypeAuthService(),
       firebaseReady: false,
     );
+    await services.appCheck.activate();
+    return services;
   }
 }
 
@@ -87,11 +92,11 @@ Future<AuthService> createAuthService() async {
   return services.auth;
 }
 
-AppServices _memoryServices({
+Future<AppServices> _memoryServices({
   required AppFlavor flavor,
   required AuthService auth,
   required bool firebaseReady,
-}) {
+}) async {
   final listeners = MemoryListenerDirectoryRepository();
   final chats = MemoryChatRepository.withDemoSession();
   final listenerOps = MemoryListenerOpsRepository();
@@ -128,6 +133,8 @@ AppServices _memoryServices({
       memberships: memberships,
       payments: payments,
     ),
+    analytics: MemoryAnalyticsService(),
+    appCheck: MemoryAppCheckService(flavor: flavor),
     firebaseReady: firebaseReady,
   );
 }

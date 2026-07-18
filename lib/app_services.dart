@@ -15,6 +15,8 @@ import 'domain/repositories/notification_service.dart';
 import 'domain/repositories/payment_gateway.dart';
 import 'domain/repositories/safety_repository.dart';
 import 'domain/repositories/user_profile_repository.dart';
+import 'services/analytics_service.dart';
+import 'services/app_check_service.dart';
 import 'services/membership_activation_service.dart';
 import 'services/payment_service.dart';
 
@@ -43,6 +45,8 @@ class AppServices {
     required this.listenerRoleGate,
     required this.discreetSettings,
     required this.membershipActivation,
+    required this.analytics,
+    required this.appCheck,
     this.firebaseReady = false,
   });
 
@@ -64,6 +68,8 @@ class AppServices {
   final ListenerRoleGate listenerRoleGate;
   final DiscreetSettings discreetSettings;
   final MembershipActivationService membershipActivation;
+  final AnalyticsService analytics;
+  final AppCheckService appCheck;
 
   /// True when Firebase.initializeApp succeeded (staging/prod path).
   final bool firebaseReady;

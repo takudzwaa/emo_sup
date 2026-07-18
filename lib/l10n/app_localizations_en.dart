@@ -40,6 +40,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get talkToSomeone => 'Talk to Someone';
 
   @override
+  String get connecting => 'Connecting…';
+
+  @override
   String get crisisResources => 'Crisis resources';
 
   @override
@@ -62,4 +65,61 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get languageNdebele => 'Ndebele';
+
+  @override
+  String get bookASession => 'Book a session';
+
+  @override
+  String get tryAgainLater => 'Try again later';
+
+  @override
+  String get matchingPaused => 'Matching is paused';
+
+  @override
+  String get noListenersAvailable => 'No listeners available right now';
+
+  @override
+  String get freeChatsUsed => 'Free chats used for this week';
+
+  @override
+  String get confirmBooking => 'Confirm booking';
+
+  @override
+  String get chooseATime => 'Choose a time';
+
+  @override
+  String get online => 'Online';
+
+  @override
+  String get away => 'Away';
+
+  @override
+  String get activeChats => 'Active chats';
+
+  @override
+  String get upcomingBookings => 'Upcoming bookings';
+
+  @override
+  String get openChat => 'Open chat';
+
+  @override
+  String get submitReport => 'Submit report';
+
+  @override
+  String get blockListener => 'Block this listener';
+
+  @override
+  String get discreetMode => 'Discreet mode';
+
+  @override
+  String get appLock => 'App lock';
+
+  @override
+  String get unlock => 'Unlock';
+
+  @override
+  String get enterPin => 'Enter PIN';
+
+  @override
+  String get volunteerPilot => 'Volunteer pilot — no earnings shown.';
 }

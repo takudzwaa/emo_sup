@@ -160,6 +160,12 @@ abstract class AppLocalizations {
   /// **'Talk to Someone'**
   String get talkToSomeone;
 
+  /// No description provided for @connecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting…'**
+  String get connecting;
+
   /// No description provided for @crisisResources.
   ///
   /// In en, this message translates to:
@@ -207,6 +213,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ndebele'**
   String get languageNdebele;
+
+  /// No description provided for @bookASession.
+  ///
+  /// In en, this message translates to:
+  /// **'Book a session'**
+  String get bookASession;
+
+  /// No description provided for @tryAgainLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again later'**
+  String get tryAgainLater;
+
+  /// No description provided for @matchingPaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching is paused'**
+  String get matchingPaused;
+
+  /// No description provided for @noListenersAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No listeners available right now'**
+  String get noListenersAvailable;
+
+  /// No description provided for @freeChatsUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Free chats used for this week'**
+  String get freeChatsUsed;
+
+  /// No description provided for @confirmBooking.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm booking'**
+  String get confirmBooking;
+
+  /// No description provided for @chooseATime.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a time'**
+  String get chooseATime;
+
+  /// No description provided for @online.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get online;
+
+  /// No description provided for @away.
+  ///
+  /// In en, this message translates to:
+  /// **'Away'**
+  String get away;
+
+  /// No description provided for @activeChats.
+  ///
+  /// In en, this message translates to:
+  /// **'Active chats'**
+  String get activeChats;
+
+  /// No description provided for @upcomingBookings.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming bookings'**
+  String get upcomingBookings;
+
+  /// No description provided for @openChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Open chat'**
+  String get openChat;
+
+  /// No description provided for @submitReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit report'**
+  String get submitReport;
+
+  /// No description provided for @blockListener.
+  ///
+  /// In en, this message translates to:
+  /// **'Block this listener'**
+  String get blockListener;
+
+  /// No description provided for @discreetMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Discreet mode'**
+  String get discreetMode;
+
+  /// No description provided for @appLock.
+  ///
+  /// In en, this message translates to:
+  /// **'App lock'**
+  String get appLock;
+
+  /// No description provided for @unlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get unlock;
+
+  /// No description provided for @enterPin.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter PIN'**
+  String get enterPin;
+
+  /// No description provided for @volunteerPilot.
+  ///
+  /// In en, this message translates to:
+  /// **'Volunteer pilot — no earnings shown.'**
+  String get volunteerPilot;
 }
 
 class _AppLocalizationsDelegate

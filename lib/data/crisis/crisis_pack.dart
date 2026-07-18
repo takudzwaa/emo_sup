@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
-/// Offline crisis resource pack (PR 18).
+/// Offline crisis resource pack (PR 18 / 27).
 ///
-/// **Hard gate:** [partnerSignOff] must be present for production-facing builds.
-/// sn/nd packs are deferred until partner-reviewed.
+/// **Hard gate:** [partnerSignOff] must be present. sn/nd packs require the
+/// same partner metadata as EN.
 class CrisisPack {
   const CrisisPack({
     required this.locale,
@@ -93,17 +93,34 @@ class CrisisResource {
   }
 }
 
-/// Loads bundled EN Zimbabwe pack.
+/// Loads bundled Zimbabwe crisis packs by locale (PR 18 + 27).
 class CrisisPackLoader {
-  static const assetPath = 'assets/crisis/zw_en.json';
+  static const enPath = 'assets/crisis/zw_en.json';
+  static const snPath = 'assets/crisis/zw_sn.json';
+  static const ndPath = 'assets/crisis/zw_nd.json';
 
-  static Future<CrisisPack> loadEnZw() async {
-    final raw = await rootBundle.loadString(assetPath);
+  static String assetPathForLocale(String languageCode) {
+    switch (languageCode.toLowerCase()) {
+      case 'sn':
+        return snPath;
+      case 'nd':
+        return ndPath;
+      case 'en':
+      default:
+        return enPath;
+    }
+  }
+
+  static Future<CrisisPack> loadEnZw() => loadForLocale('en');
+
+  static Future<CrisisPack> loadForLocale(String languageCode) async {
+    final path = assetPathForLocale(languageCode);
+    final raw = await rootBundle.loadString(path);
     final map = jsonDecode(raw) as Map<String, dynamic>;
     final pack = CrisisPack.fromJson(map);
     if (!pack.isSignedOff) {
       throw StateError(
-        'Crisis pack missing partnerSignOff — do not ship (PR 18 hard gate).',
+        'Crisis pack $path missing partnerSignOff — do not ship (hard gate).',
       );
     }
     return pack;

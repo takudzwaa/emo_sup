@@ -1,0 +1,41 @@
+{
+  "locale": "sn",
+  "region": "ZW",
+  "version": "2026-07-19.1-sn",
+  "partnerSignOff": {
+    "partner": "PILOT-PLACEHOLDER-SN — replace with vetted ZW partner",
+    "signedAt": "2026-07-19",
+    "reviewer": "product-owner-confirm",
+    "notes": "Shona crisis pack. Public emergency entry points only. Re-validate with local partner before open enrollment. Not a medical/clinical service."
+  },
+  "disclaimer": "App iyi haisi sevhisi yekukurumidza kana yekurapa. Kana uri munjodzi, taura nesevhisi dzenyika kana mumwe waanovimba naye. Nhamba dzinogona kuchinja — tarisa paunofona.",
+  "resources": [
+    {
+      "id": "zw_police_emergency",
+      "title": "Njodzi yeZimbabwe (mapurisa)",
+      "subtitle": "Nhamba yeruzhinji — shandisa kana uri munjodzi",
+      "tel": "999",
+      "icon": "emergency"
+    },
+    {
+      "id": "zw_ambulance",
+      "title": "Ambireshi",
+      "subtitle": "Rubatsiro rwekurapwa (nhamba yeruzhinji)",
+      "tel": "994",
+      "icon": "emergency"
+    },
+    {
+      "id": "zw_fire",
+      "title": "Moto",
+      "subtitle": "Nhamba yemoto",
+      "tel": "993",
+      "icon": "emergency"
+    },
+    {
+      "id": "trusted_person",
+      "title": "Mumwe waunovimba naye pedyo",
+      "subtitle": "Shamwari, mhuri, muvakidzani, kana mubatsiri wemhara",
+      "icon": "people"
+    }
+  ]
+}

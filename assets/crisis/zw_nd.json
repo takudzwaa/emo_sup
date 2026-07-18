@@ -1,0 +1,41 @@
+{
+  "locale": "nd",
+  "region": "ZW",
+  "version": "2026-07-19.1-nd",
+  "partnerSignOff": {
+    "partner": "PILOT-PLACEHOLDER-ND — replace with vetted ZW partner",
+    "signedAt": "2026-07-19",
+    "reviewer": "product-owner-confirm",
+    "notes": "Ndebele crisis pack. Public emergency entry points only. Re-validate with local partner before open enrollment. Not a medical/clinical service."
+  },
+  "disclaimer": "Le-app akusiyo isevisi ephuthumayo noma yokwelapha. Uma usengozini, thintana nesevisi zendawo noma othile othembekile. Izinombolo zingashintsha — qinisekisa uma ushaya ucingo.",
+  "resources": [
+    {
+      "id": "zw_police_emergency",
+      "title": "Isimo esiphuthumayo seZimbabwe (amaphoyisa)",
+      "subtitle": "Ucingo lomphakathi — sebenzisa uma usengozini",
+      "tel": "999",
+      "icon": "emergency"
+    },
+    {
+      "id": "zw_ambulance",
+      "title": "I-ambulensi",
+      "subtitle": "Usizo lwezempilo (ucingo lomphakathi)",
+      "tel": "994",
+      "icon": "emergency"
+    },
+    {
+      "id": "zw_fire",
+      "title": "Amazicishamlilo",
+      "subtitle": "Ucingo lomlilo",
+      "tel": "993",
+      "icon": "emergency"
+    },
+    {
+      "id": "trusted_person",
+      "title": "Othile othembekile eduze",
+      "subtitle": "Umngane, umndeni, umakhelwane, noma umsizi womphakathi",
+      "icon": "people"
+    }
+  ]
+}

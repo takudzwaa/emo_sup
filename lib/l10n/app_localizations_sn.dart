@@ -41,6 +41,9 @@ class AppLocalizationsSn extends AppLocalizations {
   String get talkToSomeone => 'Taura nemumwe';
 
   @override
+  String get connecting => 'Kubatana…';
+
+  @override
   String get crisisResources => 'Zvinhu zvekubatsira pakati pechinetso';
 
   @override
@@ -63,4 +66,61 @@ class AppLocalizationsSn extends AppLocalizations {
 
   @override
   String get languageNdebele => 'ChiNdebele';
+
+  @override
+  String get bookASession => 'Bhuka guva';
+
+  @override
+  String get tryAgainLater => 'Edza zvakare gare gare';
+
+  @override
+  String get matchingPaused => 'Kubatanidza kwakamiswa';
+
+  @override
+  String get noListenersAvailable => 'Hapana vateereri parizvino';
+
+  @override
+  String get freeChatsUsed => 'Hurukuro dzemahara dzevhiki dzapera';
+
+  @override
+  String get confirmBooking => 'Simbisa kubhuka';
+
+  @override
+  String get chooseATime => 'Sarudza nguva';
+
+  @override
+  String get online => 'Pari online';
+
+  @override
+  String get away => 'Asipo';
+
+  @override
+  String get activeChats => 'Hurukuro dziri kufamba';
+
+  @override
+  String get upcomingBookings => 'Mabhuku anotevera';
+
+  @override
+  String get openChat => 'Vhura hurukuro';
+
+  @override
+  String get submitReport => 'Tumira chirevo';
+
+  @override
+  String get blockListener => 'Dzivirira muteereri uyu';
+
+  @override
+  String get discreetMode => 'Maitiro akavanzika';
+
+  @override
+  String get appLock => 'Kukiya app';
+
+  @override
+  String get unlock => 'Vhura';
+
+  @override
+  String get enterPin => 'Isa PIN';
+
+  @override
+  String get volunteerPilot => 'Pilot yevazvipiri — hapana mari inoratidzwa.';
 }

@@ -110,6 +110,7 @@ class EmoSupApp extends StatelessWidget {
       featureFlags: services?.featureFlags,
       safetyRepository: services?.safety,
       discreetSettings: discreetSettings,
+      analytics: services?.analytics,
       userId: profile.uid,
       anonymousUsername: profile.anonymousName,
     );
