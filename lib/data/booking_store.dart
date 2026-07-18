@@ -70,6 +70,7 @@ class BookingStore extends ChangeNotifier {
       MemoryBookingRepository.defaultSeedBookings();
 
   /// Mock availability: next [days] days × 3 blocks (10:00, 14:00, 19:00).
+  /// Some morning slots are **sponsored** free (PR 15).
   List<TimeSlot> slotsForListener(String listenerId, {int days = 7}) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -93,7 +94,16 @@ class BookingStore extends ChangeNotifier {
         if (taken) continue;
 
         final requiresPremium = hours[h] == 19 && (d + offset).isOdd;
-        slots.add(TimeSlot(start: start, requiresPremium: requiresPremium));
+        // Morning community free slots (sponsor) — not premium.
+        final sponsored = hours[h] == 10 && (d + offset).isEven && !requiresPremium;
+        slots.add(
+          TimeSlot(
+            start: start,
+            requiresPremium: requiresPremium,
+            sponsored: sponsored,
+            sponsorId: sponsored ? 'sponsor_community_free' : null,
+          ),
+        );
       }
     }
     return slots;
@@ -105,6 +115,7 @@ class BookingStore extends ChangeNotifier {
   }
 
   bool isPremiumAccess({required String listenerId, required TimeSlot slot}) {
+    if (slot.sponsored) return false;
     final listener = listenerById(listenerId);
     return slot.requiresPremium || (listener?.isPremium ?? false);
   }
@@ -118,18 +129,21 @@ class BookingStore extends ChangeNotifier {
     bool planApplied = false,
     PaymentMethod? paymentMethod,
     String paymentStatus = 'free',
+    String? sponsorId,
+    BookingStatus status = BookingStatus.confirmed,
   }) {
     final booking = Booking(
       id: 'booking_${++_idCounter}',
       userId: currentUserId,
       listenerId: listenerId,
       slotStart: slotStart,
-      status: BookingStatus.confirmed,
+      status: status,
       priceCents: priceCents,
       currency: currency,
       planApplied: planApplied,
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus,
+      sponsorId: sponsorId,
     );
     _bookings.add(booking);
     bookingRepository.confirmBooking(

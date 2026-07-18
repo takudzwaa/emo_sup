@@ -14,12 +14,16 @@ class MessageBubble extends StatelessWidget {
     required this.isMine,
     required this.showTimestamp,
     required this.onLongPress,
+    this.onRetry,
   });
 
   final ChatMessage message;
   final bool isMine;
   final bool showTimestamp;
   final VoidCallback onLongPress;
+
+  /// Shown when [message] is [MessageStatus.failed] and is mine (PR 11).
+  final VoidCallback? onRetry;
 
   static String formatTime(DateTime time) {
     final hour = time.hour;
@@ -157,6 +161,18 @@ class MessageBubble extends StatelessWidget {
                       )
                     : const SizedBox.shrink(),
               ),
+              if (isMine &&
+                  message.status == MessageStatus.failed &&
+                  onRetry != null)
+                TextButton(
+                  onPressed: onRetry,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: scheme.error,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('Tap to retry'),
+                ),
             ],
           ),
         ),

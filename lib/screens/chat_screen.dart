@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/chat_store.dart';
 import '../data/listener_dashboard_store.dart';
+import '../models/chat_message.dart';
 import '../widgets/anonymous_avatar.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/message_bubble.dart';
@@ -332,6 +333,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       message: message,
                       isMine: _store.isFromCurrentUser(message),
                       showTimestamp: _timestampMessageId == message.id,
+                      onRetry: _store.isFromCurrentUser(message) &&
+                              message.status == MessageStatus.failed
+                          ? () => _store.retryMessage(message.id)
+                          : null,
                       onLongPress: () {
                         setState(() {
                           _timestampMessageId =

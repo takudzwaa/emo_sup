@@ -5,6 +5,7 @@ import 'app_services.dart';
 import 'auth/auth_service.dart';
 import 'auth/firebase_auth_service.dart';
 import 'config/app_flavor.dart';
+import 'data/repositories/memory_booking_checkout_repository.dart';
 import 'data/repositories/memory_booking_repository.dart';
 import 'data/repositories/memory_chat_repository.dart';
 import 'data/repositories/memory_listener_directory_repository.dart';
@@ -14,6 +15,8 @@ import 'data/repositories/memory_membership_repository.dart';
 import 'data/repositories/memory_mood_repository.dart';
 import 'data/repositories/memory_safety_repository.dart';
 import 'data/repositories/memory_user_profile_repository.dart';
+import 'domain/repositories/notification_service.dart';
+import 'services/payment_service.dart';
 
 /// Composition root: flavor + auth + domain repositories.
 ///
@@ -28,8 +31,9 @@ import 'data/repositories/memory_user_profile_repository.dart';
 /// flutter run --dart-define=FLAVOR=staging
 /// ```
 ///
-/// Crashlytics / FCM / App Check are intentionally **not** initialized here
-/// (later small PRs). Packages may be present for compile-time wiring only.
+/// Crashlytics / real FCM / App Check init stay deferred until a Firebase
+/// project is linked. [MemoryNotificationService] provides the PR 12 policy
+/// surface (no chat bodies) without requiring `firebase_messaging` at runtime.
 Future<AppServices> createAppServices({
   AppFlavor? flavorOverride,
   AuthService? authOverride,
@@ -83,6 +87,7 @@ AppServices _memoryServices({
 }) {
   final listeners = MemoryListenerDirectoryRepository();
   final chats = MemoryChatRepository.withDemoSession();
+  final listenerOps = MemoryListenerOpsRepository();
   return AppServices(
     flavor: flavor,
     auth: auth,
@@ -92,9 +97,12 @@ AppServices _memoryServices({
     listeners: listeners,
     membership: MemoryMembershipRepository(),
     chats: chats,
-    listenerOps: MemoryListenerOpsRepository(),
+    listenerOps: listenerOps,
     safety: MemorySafetyRepository(),
     match: MemoryMatchRepository(listeners: listeners, chats: chats),
+    bookingCheckout: MemoryBookingCheckoutRepository(listenerOps: listenerOps),
+    notifications: MemoryNotificationService(),
+    payments: PaymentService(delay: Duration.zero),
     firebaseReady: firebaseReady,
   );
 }

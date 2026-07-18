@@ -184,9 +184,11 @@ class _SlotChip extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final gold = AppTheme.premiumAccent(scheme);
 
-    final premiumCaption = !slot.requiresPremium
-        ? null
-        : (hasActivePlan ? 'Included in plan' : 'Premium · \$12');
+    final premiumCaption = slot.sponsored
+        ? 'Free · sponsor'
+        : !slot.requiresPremium
+            ? null
+            : (hasActivePlan ? 'Included in plan' : 'Premium · \$12');
 
     return Material(
       color: Colors.transparent,

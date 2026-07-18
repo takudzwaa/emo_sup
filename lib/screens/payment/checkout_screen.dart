@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../../data/booking_store.dart';
 import '../../data/membership_store.dart';
+import '../../data/repositories/memory_booking_checkout_repository.dart';
+import '../../domain/repositories/booking_checkout_repository.dart';
 import '../../models/booking.dart';
 import '../../models/listener_profile.dart';
 import '../../models/payment_method.dart';
@@ -12,9 +14,11 @@ import '../../widgets/safety_quick_access_bar.dart';
 import '../../widgets/soft_surface.dart';
 import 'booking_success_screen.dart';
 
-/// Demo multi-method checkout for premium sessions.
+/// Demo multi-method checkout for premium sessions (PR 13–14).
 ///
-/// Never charges real money — [PaymentService] is in-memory only.
+/// Flow: [BookingCheckoutRepository.createBookingCheckout] (pending_payment)
+/// → [PaymentGateway.charge] (FakePaymentGateway) → confirmPayment.
+/// Never charges real money in Phase A.
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({
     super.key,
@@ -23,6 +27,7 @@ class CheckoutScreen extends StatefulWidget {
     required this.listener,
     required this.slot,
     this.paymentService,
+    this.checkoutRepository,
   });
 
   final BookingStore store;
@@ -33,6 +38,9 @@ class CheckoutScreen extends StatefulWidget {
   /// Injectable for tests (use [PaymentService] with [Duration.zero] delay).
   final PaymentService? paymentService;
 
+  /// Injectable checkout (memory stand-in for CF createBookingCheckout).
+  final BookingCheckoutRepository? checkoutRepository;
+
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
 }
@@ -40,6 +48,8 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   late final PaymentService _paymentService =
       widget.paymentService ?? PaymentService();
+  late final BookingCheckoutRepository _checkout =
+      widget.checkoutRepository ?? MemoryBookingCheckoutRepository();
 
   PaymentMethod _method = PaymentMethod.card;
   bool _processing = false;
@@ -68,9 +78,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (_processing) return;
     setState(() => _processing = true);
 
+    // Hold slot as pending_payment (server-authoritative path).
+    final hold = await _checkout.createBookingCheckout(
+      userId: widget.store.currentUserId,
+      listenerId: widget.listener.id,
+      slotStart: widget.slot.start,
+      settlement: CheckoutSettlement.paid,
+      priceCents: PaymentService.sessionPriceCents,
+    );
+
     final result = await _paymentService.charge(
       method: _method,
       amountCents: PaymentService.sessionPriceCents,
+      purpose: 'booking',
+      bookingId: hold.booking.id,
       cardNumber: _cardNumber.text,
       exp: _cardExp.text,
       cvc: _cardCvc.text,
@@ -81,11 +102,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (!mounted) return;
 
     if (!result.isSuccess) {
+      await _checkout.cancelBooking(hold.booking.id);
       setState(() => _processing = false);
       _showDecline(result);
       return;
     }
 
+    final confirmed = await _checkout.confirmPayment(
+      bookingId: hold.booking.id,
+      paymentId: hold.paymentId ?? 'pay_unknown',
+      method: _method,
+    );
+
+    // Mirror into UI store for prototype lists.
     final booking = widget.store.confirmBooking(
       listenerId: widget.listener.id,
       slotStart: widget.slot.start,
@@ -95,7 +124,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentStatus: 'paid',
     );
 
-    await _finishSuccess(booking, result.message);
+    await _finishSuccess(
+      booking.copyWith(id: confirmed.id),
+      result.message,
+    );
   }
 
   Future<void> _subscribePlan() async {

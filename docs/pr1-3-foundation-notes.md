@@ -107,3 +107,27 @@ or `EmoSupApp.fromServices`.
 - Client chat **create denied**
 - `MemoryMatchRepository` (2 free async/week) + Home empty-states
 - CF scaffold: `functions/src/index.ts` → `requestMatch` (EU region)
+
+---
+
+# PR 11–15 notes
+
+## PR 11 — Chat ids / retry / block soft-reject
+- Client-generated `msg_*` ids; `retryMessage` reuses id
+- Failed bubble shows “Tap to retry”
+- Soft block list on `ChatStore`; mock replies prototype-only
+
+## PR 12 — Notifications (private by default)
+- `NotificationService` + `MemoryNotificationService`
+- Default: **no notification body** (shared-phone safety)
+
+## PR 13 — Booking checkout
+- `BookingCheckoutRepository` / memory dual-entry (free/plan/sponsored vs pending_payment)
+- Hold TTL 12m; CF scaffolds `createBookingCheckout`, `setListenerAvailability`
+
+## PR 14 — Payments Phase A
+- `PaymentGateway` + `PaymentService` ledger (FakePaymentGateway)
+- Checkout: hold → fake charge → confirm
+
+## PR 15 — Sponsor free slots
+- `TimeSlot.sponsored`; morning community free chips; confirm free path

@@ -37,8 +37,12 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
         slot: widget.slot,
       );
 
+  bool get _isSponsored => widget.slot.sponsored;
+
   bool get _needsPay =>
-      _isPremiumAccess && !widget.membershipStore.hasActivePlan;
+      _isPremiumAccess &&
+      !widget.membershipStore.hasActivePlan &&
+      !_isSponsored;
 
   bool get _planCovers =>
       _isPremiumAccess && widget.membershipStore.hasActivePlan;
@@ -46,6 +50,20 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
   Future<void> _onPrimary() async {
     if (_confirming) return;
     setState(() => _confirming = true);
+
+    // Sponsored free path (PR 15) — never force payment.
+    if (_isSponsored) {
+      final booking = widget.store.confirmBooking(
+        listenerId: widget.listener.id,
+        slotStart: widget.slot.start,
+        priceCents: 0,
+        planApplied: false,
+        paymentStatus: 'sponsored',
+        sponsorId: widget.slot.sponsorId ?? 'sponsor_community_free',
+      );
+      _finishWith(booking);
+      return;
+    }
 
     final needsPay = widget.store.isPremiumAccess(
           listenerId: widget.listener.id,
@@ -98,10 +116,12 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
       return _needsPay ? 'Opening…' : 'Confirming…';
     }
     if (_needsPay) return 'Continue to payment';
+    if (_isSponsored) return 'Confirm free session';
     return 'Confirm booking';
   }
 
   String? get _accessHint {
+    if (_isSponsored) return 'Community free slot · no payment needed';
     if (_needsPay) return 'Premium session · \$12';
     if (_planCovers) return 'Included in your plan';
     return null;

@@ -131,3 +131,101 @@ export const requestMatch = onCall(async (request) => {
     };
   });
 });
+
+/**
+ * createBookingCheckout — dual entry (PR 13).
+ * settlement: plan | sponsored | free | paid
+ */
+export const createBookingCheckout = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  const uid = request.auth.uid;
+  const listenerId = String(request.data?.listenerId ?? '');
+  const slotStart = request.data?.slotStart;
+  const settlement = String(request.data?.settlement ?? 'free');
+  const priceCents = Number(request.data?.priceCents ?? 0);
+  const currency = String(request.data?.currency ?? 'USD');
+  const sponsorId = request.data?.sponsorId as string | undefined;
+
+  if (!listenerId || !slotStart) {
+    throw new HttpsError('invalid-argument', 'listenerId and slotStart required.');
+  }
+
+  const needsPay = settlement === 'paid';
+  const bookingRef = db.collection('bookings').doc();
+  const holdMinutes = 12;
+  const booking = {
+    id: bookingRef.id,
+    userId: uid,
+    listenerId,
+    slotStart: admin.firestore.Timestamp.fromDate(new Date(slotStart)),
+    status: needsPay ? 'pending_payment' : 'confirmed',
+    paymentStatus: needsPay
+      ? 'pending'
+      : settlement === 'plan'
+        ? 'plan'
+        : settlement === 'sponsored'
+          ? 'sponsored'
+          : 'free',
+    priceCents: needsPay ? priceCents : 0,
+    currency,
+    planApplied: settlement === 'plan',
+    sponsorId: sponsorId ?? null,
+    holdExpiresAt: needsPay
+      ? admin.firestore.Timestamp.fromDate(
+          new Date(Date.now() + holdMinutes * 60 * 1000),
+        )
+      : null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await bookingRef.set(booking);
+
+  let paymentId: string | null = null;
+  if (needsPay) {
+    const payRef = db.collection('payments').doc();
+    paymentId = payRef.id;
+    await payRef.set({
+      id: paymentId,
+      bookingId: bookingRef.id,
+      userId: uid,
+      amountCents: priceCents,
+      currency,
+      status: 'pending',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  return {
+    bookingId: bookingRef.id,
+    paymentId,
+    requiresPayment: needsPay,
+    status: booking.status,
+  };
+});
+
+/** Listener availability toggle (CF-only write path). */
+export const setListenerAvailability = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  if (request.auth.token.role !== 'listener') {
+    throw new HttpsError('permission-denied', 'Listener role required.');
+  }
+  const availableNow = Boolean(request.data?.availableNow);
+  const uid = request.auth.uid;
+  const batch = db.batch();
+  batch.set(
+    db.doc(`listeners/${uid}`),
+    { availableNow, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+  batch.set(
+    db.doc(`listener_public/${uid}`),
+    { availableNow },
+    { merge: true },
+  );
+  await batch.commit();
+  return { availableNow };
+});

@@ -63,12 +63,20 @@ class TimeSlot {
   const TimeSlot({
     required this.start,
     this.requiresPremium = false,
+    this.sponsored = false,
+    this.sponsorId,
   });
 
   final DateTime start;
 
   /// Prototype-only tag; does not block booking.
   final bool requiresPremium;
+
+  /// NGO/sponsor free slot (PR 15) — never a paywall dead-end.
+  final bool sponsored;
+
+  /// Optional sponsor program id for analytics (no PII).
+  final String? sponsorId;
 
   DateTime get end => start.add(const Duration(minutes: 45));
 }

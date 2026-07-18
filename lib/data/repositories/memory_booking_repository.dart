@@ -126,7 +126,16 @@ class MemoryBookingRepository implements BookingRepository {
         if (taken) continue;
 
         final requiresPremium = hours[h] == 19 && (d + offset).isOdd;
-        slots.add(TimeSlot(start: start, requiresPremium: requiresPremium));
+        final sponsored =
+            hours[h] == 10 && (d + offset).isEven && !requiresPremium;
+        slots.add(
+          TimeSlot(
+            start: start,
+            requiresPremium: requiresPremium,
+            sponsored: sponsored,
+            sponsorId: sponsored ? 'sponsor_community_free' : null,
+          ),
+        );
       }
     }
     return slots;

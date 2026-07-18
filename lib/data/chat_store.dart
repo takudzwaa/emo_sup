@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../config/app_flavor.dart';
 import '../domain/repositories/chat_repository.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
@@ -10,27 +11,29 @@ import 'repositories/memory_chat_repository.dart';
 
 /// UI-facing chat store (ChangeNotifier façade).
 ///
-/// Persistence via [ChatRepository]. Mock listener replies stay here for
-/// the prototype flavor only.
+/// Persistence via [ChatRepository]. Client-generated message ids for offline
+/// idempotent writes (PR 11). Mock listener replies only in prototype flavor.
 class ChatStore extends ChangeNotifier {
   ChatStore({
     ChatSession? session,
     List<ChatMessage>? seedMessages,
-    this.mockListenerReplies = true,
+    bool? mockListenerReplies,
     String? actingAsId,
     ChatRepository? repository,
+    Set<String>? blockedPeerIds,
   })  : repository = repository ??
             MemoryChatRepository.withDemoSession(
               session: session,
               seedMessages: seedMessages,
             ),
+        mockListenerReplies = mockListenerReplies ?? AppFlavorConfig.isPrototype,
+        _blockedPeerIds = blockedPeerIds ?? {},
         session = session ?? MemoryChatRepository.defaultSession(),
         _messages = List<ChatMessage>.from(
           seedMessages ?? MemoryChatRepository.defaultSeedMessages(),
         ),
         actingAsId = actingAsId ??
             (session ?? MemoryChatRepository.defaultSession()).userId {
-    // Keep memory repo in sync when custom session/messages were passed.
     final repo = this.repository;
     if (repo is MemoryChatRepository) {
       repo.seedSession(this.session, messages: _messages);
@@ -42,13 +45,17 @@ class ChatStore extends ChangeNotifier {
   /// Who sends messages from this client (user or listener uid).
   final String actingAsId;
 
-  /// Demo session helper (tests / screens).
+  /// When true, canned non-clinical replies simulate a listener (prototype only).
+  final bool mockListenerReplies;
+
+  /// Peer ids blocked by this user — send is rejected (CF enforce in prod).
+  final Set<String> _blockedPeerIds;
+
   static ChatSession defaultSession() => MemoryChatRepository.defaultSession();
 
   static List<ChatMessage> defaultSeedMessages() =>
       MemoryChatRepository.defaultSeedMessages();
 
-  /// Canned listener lines (supportive, non-clinical). Rotated, not AI.
   static const List<String> _cannedReplies = [
     "I'm glad you shared that. I'm still here.",
     "That sounds like a lot to carry. Thank you for trusting this space.",
@@ -59,13 +66,15 @@ class ChatStore extends ChangeNotifier {
 
   ChatSession session;
   final List<ChatMessage> _messages;
-  final bool mockListenerReplies;
   final _random = Random();
 
   bool _listenerTyping = false;
   Timer? _replyTimer;
   final List<Timer> _statusTimers = [];
   int _idCounter = 100;
+
+  /// Optional force-fail next send (tests).
+  bool debugForceNextSendFail = false;
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   bool get isListenerTyping => _listenerTyping;
@@ -75,6 +84,14 @@ class ChatStore extends ChangeNotifier {
 
   bool isFromCurrentUser(ChatMessage message) =>
       message.senderId == actingAsId;
+
+  /// Client-generated idempotent message id (PR 11 offline model).
+  String _newClientMessageId() {
+    final t = DateTime.now().microsecondsSinceEpoch;
+    final n = ++_idCounter;
+    final r = _random.nextInt(1 << 20);
+    return 'msg_${t.toRadixString(36)}_$n$r';
+  }
 
   void _setMessageStatus(String messageId, MessageStatus status) {
     final index = _messages.indexWhere((m) => m.id == messageId);
@@ -89,12 +106,18 @@ class ChatStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sends a message as [actingAsId].
+  /// Sends a message as [actingAsId] with client-generated id.
   Future<void> sendMessage(String text) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || !session.isActive) return;
 
-    final localId = 'msg_local_${++_idCounter}';
+    final peerId = isActingAsListener ? session.userId : session.listenerId;
+    if (_blockedPeerIds.contains(peerId)) {
+      // Authoritative reject in prod is CF onMessageCreate; client soft-block.
+      return;
+    }
+
+    final localId = _newClientMessageId();
     final sending = ChatMessage(
       id: localId,
       senderId: actingAsId,
@@ -105,27 +128,65 @@ class ChatStore extends ChangeNotifier {
     _messages.add(sending);
     notifyListeners();
 
-    await repository.sendMessage(
-      sessionId: session.id,
-      senderId: actingAsId,
-      text: trimmed,
-      clientMessageId: localId,
-    );
+    if (debugForceNextSendFail) {
+      debugForceNextSendFail = false;
+      _setMessageStatus(localId, MessageStatus.failed);
+      return;
+    }
 
-    // Prototype delivery: sending → sent → delivered via short timers.
-    _statusTimers.add(
-      Timer(const Duration(milliseconds: 150), () {
-        _setMessageStatus(localId, MessageStatus.sent);
-        _statusTimers.add(
-          Timer(const Duration(milliseconds: 200), () {
-            _setMessageStatus(localId, MessageStatus.delivered);
-          }),
-        );
-      }),
-    );
+    try {
+      await repository.sendMessage(
+        sessionId: session.id,
+        senderId: actingAsId,
+        text: trimmed,
+        clientMessageId: localId,
+      );
 
-    if (mockListenerReplies && !isActingAsListener) {
-      _scheduleMockListenerReply();
+      _statusTimers.add(
+        Timer(const Duration(milliseconds: 150), () {
+          _setMessageStatus(localId, MessageStatus.sent);
+          _statusTimers.add(
+            Timer(const Duration(milliseconds: 200), () {
+              _setMessageStatus(localId, MessageStatus.delivered);
+            }),
+          );
+        }),
+      );
+
+      if (mockListenerReplies && !isActingAsListener) {
+        _scheduleMockListenerReply();
+      }
+    } catch (_) {
+      _setMessageStatus(localId, MessageStatus.failed);
+    }
+  }
+
+  /// Retry a failed message reusing the same client id (PR 11).
+  Future<void> retryMessage(String messageId) async {
+    final index = _messages.indexWhere((m) => m.id == messageId);
+    if (index == -1) return;
+    final existing = _messages[index];
+    if (existing.status != MessageStatus.failed) return;
+    if (existing.senderId != actingAsId) return;
+
+    _messages[index] = existing.copyWith(status: MessageStatus.sending);
+    notifyListeners();
+
+    try {
+      await repository.sendMessage(
+        sessionId: session.id,
+        senderId: actingAsId,
+        text: existing.text,
+        clientMessageId: existing.id,
+      );
+      _setMessageStatus(messageId, MessageStatus.sent);
+      _statusTimers.add(
+        Timer(const Duration(milliseconds: 200), () {
+          _setMessageStatus(messageId, MessageStatus.delivered);
+        }),
+      );
+    } catch (_) {
+      _setMessageStatus(messageId, MessageStatus.failed);
     }
   }
 
@@ -139,7 +200,7 @@ class ChatStore extends ChangeNotifier {
       _listenerTyping = false;
       final reply = _cannedReplies[_random.nextInt(_cannedReplies.length)];
       final message = ChatMessage(
-        id: 'msg_listener_${++_idCounter}',
+        id: _newClientMessageId(),
         senderId: session.listenerId,
         text: reply,
         timestamp: DateTime.now(),

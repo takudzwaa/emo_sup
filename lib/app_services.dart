@@ -1,5 +1,6 @@
 import 'auth/auth_service.dart';
 import 'config/app_flavor.dart';
+import 'domain/repositories/booking_checkout_repository.dart';
 import 'domain/repositories/booking_repository.dart';
 import 'domain/repositories/chat_repository.dart';
 import 'domain/repositories/listener_directory_repository.dart';
@@ -7,8 +8,11 @@ import 'domain/repositories/listener_ops_repository.dart';
 import 'domain/repositories/match_repository.dart';
 import 'domain/repositories/membership_repository.dart';
 import 'domain/repositories/mood_repository.dart';
+import 'domain/repositories/notification_service.dart';
+import 'domain/repositories/payment_gateway.dart';
 import 'domain/repositories/safety_repository.dart';
 import 'domain/repositories/user_profile_repository.dart';
+import 'services/payment_service.dart';
 
 /// Composition root for the app — auth + domain repositories.
 ///
@@ -28,6 +32,9 @@ class AppServices {
     required this.listenerOps,
     required this.safety,
     required this.match,
+    required this.bookingCheckout,
+    required this.notifications,
+    required this.payments,
     this.firebaseReady = false,
   });
 
@@ -42,6 +49,9 @@ class AppServices {
   final ListenerOpsRepository listenerOps;
   final SafetyRepository safety;
   final MatchRepository match;
+  final BookingCheckoutRepository bookingCheckout;
+  final NotificationService notifications;
+  final PaymentGateway payments;
 
   /// True when Firebase.initializeApp succeeded (staging/prod path).
   final bool firebaseReady;
