@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../config/feature_flags.dart';
 import '../data/booking_store.dart';
 import '../data/chat_store.dart';
 import '../data/membership_store.dart';
 import '../data/mood_store.dart';
 import '../data/repositories/memory_match_repository.dart';
 import '../domain/repositories/match_repository.dart';
+import '../domain/repositories/safety_repository.dart';
 import '../models/chat_message.dart';
 import '../models/mood_entry.dart';
 import '../utils/date_format.dart';
@@ -26,6 +28,8 @@ class HomeScreen extends StatefulWidget {
     required this.bookingStore,
     required this.membershipStore,
     this.matchRepository,
+    this.featureFlags,
+    this.safetyRepository,
     this.userId = 'user_quiet_river',
     this.anonymousUsername = 'Quiet River',
   });
@@ -36,6 +40,9 @@ class HomeScreen extends StatefulWidget {
 
   /// Server-authoritative matchmaking (PR 10). Defaults to memory match.
   final MatchRepository? matchRepository;
+
+  final FeatureFlags? featureFlags;
+  final SafetyRepository? safetyRepository;
 
   final String userId;
 
@@ -95,13 +102,26 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openSafetyHub() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const SafetyPrivacyScreen(),
+        builder: (_) => SafetyPrivacyScreen(
+          safetyRepository: widget.safetyRepository,
+          userId: widget.userId,
+        ),
       ),
     );
   }
 
   Future<void> _openChat() async {
     if (_matching) return;
+    final flags = widget.featureFlags;
+    if (flags != null && !flags.matchEnabled) {
+      await _showMatchEmptyState(
+        title: 'Matching is paused',
+        body:
+            'Talk-to-someone is temporarily unavailable. You can still open '
+            'Safety & Privacy and crisis resources — they are never turned off.',
+      );
+      return;
+    }
     setState(() => _matching = true);
     try {
       final result = await _match.requestMatch(

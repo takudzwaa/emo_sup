@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:emo_sup/config/listener_role.dart';
 import 'package:emo_sup/data/listener_dashboard_store.dart';
 import 'package:emo_sup/main_listener.dart';
 import 'package:emo_sup/models/active_chat_summary.dart';
 import 'package:emo_sup/screens/chat_screen.dart';
 import 'package:emo_sup/widgets/message_bubble.dart';
 
+ListenerApp _listenerApp(ListenerDashboardStore store) {
+  return ListenerApp(
+    store: store,
+    roleGate: ListenerRoleGate(claimOverride: true),
+  );
+}
+
 void main() {
   testWidgets('Dashboard shows availability, chats, bookings, reminder',
       (tester) async {
     final store = ListenerDashboardStore();
-    await tester.pumpWidget(ListenerApp(store: store));
+    await tester.pumpWidget(_listenerApp(store));
 
     expect(find.text('Listener dashboard'), findsOneWidget);
     expect(find.text('Online'), findsOneWidget);
     expect(find.byType(Switch), findsOneWidget);
     expect(find.text('Sessions today'), findsOneWidget);
-    expect(find.textContaining('demo'), findsWidgets);
+    expect(find.textContaining('Volunteer pilot'), findsWidgets);
     expect(find.text('Active chats'), findsOneWidget);
     expect(find.text('Upcoming bookings'), findsOneWidget);
     expect(find.text('Quiet River'), findsOneWidget);
@@ -29,9 +37,17 @@ void main() {
     expect(find.textContaining('Escalate button'), findsOneWidget);
   });
 
+  testWidgets('Without claim shows not a listener', (tester) async {
+    await tester.pumpWidget(
+      ListenerApp(roleGate: ListenerRoleGate(claimOverride: false)),
+    );
+    expect(find.text('Not a listener account'), findsOneWidget);
+    expect(find.text('Listener dashboard'), findsNothing);
+  });
+
   testWidgets('Availability toggle updates store', (tester) async {
     final store = ListenerDashboardStore(availableNow: true);
-    await tester.pumpWidget(ListenerApp(store: store));
+    await tester.pumpWidget(_listenerApp(store));
 
     expect(store.availableNow, isTrue);
     expect(find.text('Online'), findsOneWidget);
@@ -41,20 +57,21 @@ void main() {
     expect(find.text('Away'), findsOneWidget);
   });
 
-  testWidgets('Today summary uses active chat count (demo earnings)',
+  testWidgets('Today summary shows sessions without demo earnings',
       (tester) async {
     final store = ListenerDashboardStore();
-    await tester.pumpWidget(ListenerApp(store: store));
+    await tester.pumpWidget(_listenerApp(store));
 
     final count = store.sessionsToday;
     expect(find.text('$count'), findsWidgets);
-    expect(find.text('\$${count * 8}'), findsOneWidget);
-    expect(find.textContaining('not real payouts'), findsOneWidget);
+    // Pilot: earnings UI hidden (PR 20).
+    expect(find.text('\$${count * 8}'), findsNothing);
+    expect(find.textContaining('Volunteer pilot'), findsOneWidget);
   });
 
   testWidgets('Open chat opens listener Chat perspective', (tester) async {
     final store = ListenerDashboardStore();
-    await tester.pumpWidget(ListenerApp(store: store));
+    await tester.pumpWidget(_listenerApp(store));
 
     final openChat = find.text('Open chat').first;
     await tester.ensureVisible(openChat);
@@ -84,7 +101,7 @@ void main() {
       ],
       upcomingBookings: const [],
     );
-    await tester.pumpWidget(ListenerApp(store: store));
+    await tester.pumpWidget(_listenerApp(store));
 
     await tester.tap(find.text('Escalate').first);
     await tester.pumpAndSettle();
@@ -109,7 +126,7 @@ void main() {
         ),
       ],
     );
-    await tester.pumpWidget(ListenerApp(store: store));
+    await tester.pumpWidget(_listenerApp(store));
 
     final joinBtn = find.widgetWithText(FilledButton, 'Join at time');
     expect(joinBtn, findsOneWidget);
@@ -129,7 +146,7 @@ void main() {
         ),
       ],
     );
-    await tester.pumpWidget(ListenerApp(store: store));
+    await tester.pumpWidget(_listenerApp(store));
 
     final joinBtn = find.widgetWithText(FilledButton, 'Join now');
     expect(joinBtn, findsOneWidget);

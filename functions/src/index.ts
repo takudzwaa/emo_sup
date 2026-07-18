@@ -229,3 +229,88 @@ export const setListenerAvailability = onCall(async (request) => {
   await batch.commit();
   return { availableNow };
 });
+
+/** escalateChat — listener flags risk; writes safety_inbox (PR 16). */
+export const escalateChat = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  if (request.auth.token.role !== 'listener') {
+    throw new HttpsError('permission-denied', 'Listener role required.');
+  }
+  const sessionId = String(request.data?.sessionId ?? '');
+  const reason = String(request.data?.reason ?? 'listener_escalation');
+  if (!sessionId) {
+    throw new HttpsError('invalid-argument', 'sessionId required.');
+  }
+  const ref = db.collection('safety_inbox').doc();
+  await ref.set({
+    id: ref.id,
+    kind: 'escalate',
+    sessionId,
+    listenerId: request.auth.uid,
+    reason,
+    status: 'open',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    ackDueAt: admin.firestore.Timestamp.fromDate(
+      new Date(Date.now() + 24 * 60 * 60 * 1000),
+    ),
+  });
+  await db.doc(`chats/${sessionId}`).set(
+    { status: 'escalated', escalatedAt: admin.firestore.FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+  return { inboxId: ref.id };
+});
+
+/**
+ * deleteMyData — scrub requester texts, soft-unlink, retain reports (PR 17).
+ * Auth user delete is scheduled ≤24h by ops/CF follow-up.
+ */
+export const deleteMyData = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  const uid = request.auth.uid;
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  await db.doc(`users/${uid}`).set(
+    { deletionRequestedAt: now },
+    { merge: true },
+  );
+
+  const chats = await db
+    .collection('chats')
+    .where('userId', '==', uid)
+    .get();
+  let messagesScrubbed = 0;
+  for (const chat of chats.docs) {
+    await chat.ref.set(
+      { userDeleted: true, status: 'ended', endedAt: now },
+      { merge: true },
+    );
+    const msgs = await chat.ref.collection('messages').where('senderId', '==', uid).get();
+    for (const m of msgs.docs) {
+      await m.ref.update({ text: '[message removed]' });
+      messagesScrubbed++;
+    }
+  }
+
+  const tokens = await db.collection(`users/${uid}/fcm_tokens`).get();
+  for (const t of tokens.docs) {
+    await t.ref.delete();
+  }
+  const quotas = await db.collection(`users/${uid}/match_quota`).get();
+  for (const q of quotas.docs) {
+    await q.ref.delete();
+  }
+
+  await db.collection('safety_inbox').add({
+    kind: 'delete_request',
+    userId: uid,
+    messagesScrubbed,
+    status: 'open',
+    createdAt: now,
+  });
+
+  return { messagesScrubbed, authDeleteWithinHours: 24 };
+});

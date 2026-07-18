@@ -91,6 +91,8 @@ class EmoSupApp extends StatelessWidget {
             bookingStore: bookingStore,
             membershipStore: membershipStore,
             matchRepository: services?.match,
+            featureFlags: services?.featureFlags,
+            safetyRepository: services?.safety,
             userId: profile.uid,
             anonymousUsername: profile.anonymousName,
           );

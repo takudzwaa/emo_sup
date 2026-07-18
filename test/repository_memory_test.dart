@@ -97,7 +97,7 @@ void main() {
   });
 
   group('MemorySafetyRepository', () {
-    test('captures report, block, delete', () async {
+    test('captures report, block, delete, and inbox', () async {
       final repo = MemorySafetyRepository();
       await repo.submitReport(
         reporterId: 'u1',
@@ -105,11 +105,13 @@ void main() {
         targetId: 'l1',
         reason: 'Felt unsafe or pressured',
       );
-      await repo.blockTarget(blockerId: 'u1', blockedId: 'l1');
-      await repo.requestDeleteMyData('u1');
+      final block = await repo.blockTarget(blockerId: 'u1', blockedId: 'l1');
+      expect(block.blockId, 'u1_l1');
+      final del = await repo.requestDeleteMyData('u1');
       expect(repo.reports.length, 1);
       expect(repo.blocks.length, 1);
-      expect(repo.deleteRequests, ['u1']);
+      expect(del.userId, 'u1');
+      expect(repo.safetyInbox.length, greaterThanOrEqualTo(3));
     });
   });
 }

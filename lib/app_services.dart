@@ -1,5 +1,7 @@
 import 'auth/auth_service.dart';
 import 'config/app_flavor.dart';
+import 'config/feature_flags.dart';
+import 'config/listener_role.dart';
 import 'domain/repositories/booking_checkout_repository.dart';
 import 'domain/repositories/booking_repository.dart';
 import 'domain/repositories/chat_repository.dart';
@@ -35,6 +37,8 @@ class AppServices {
     required this.bookingCheckout,
     required this.notifications,
     required this.payments,
+    required this.featureFlags,
+    required this.listenerRoleGate,
     this.firebaseReady = false,
   });
 
@@ -52,6 +56,8 @@ class AppServices {
   final BookingCheckoutRepository bookingCheckout;
   final NotificationService notifications;
   final PaymentGateway payments;
+  final FeatureFlags featureFlags;
+  final ListenerRoleGate listenerRoleGate;
 
   /// True when Firebase.initializeApp succeeded (staging/prod path).
   final bool firebaseReady;

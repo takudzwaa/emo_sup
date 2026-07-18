@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../data/listener_dashboard_store.dart';
+import '../../data/repositories/memory_safety_repository.dart';
+import '../../domain/repositories/safety_repository.dart';
 import '../../models/active_chat_summary.dart';
 import '../../theme/listener_theme.dart';
 import '../../utils/date_format.dart';
@@ -14,9 +16,11 @@ class ListenerDashboardScreen extends StatefulWidget {
   const ListenerDashboardScreen({
     super.key,
     this.store,
+    this.safetyRepository,
   });
 
   final ListenerDashboardStore? store;
+  final SafetyRepository? safetyRepository;
 
   @override
   State<ListenerDashboardScreen> createState() =>
@@ -26,12 +30,14 @@ class ListenerDashboardScreen extends StatefulWidget {
 class _ListenerDashboardScreenState extends State<ListenerDashboardScreen> {
   late final ListenerDashboardStore _store;
   late final bool _ownsStore;
+  late final SafetyRepository _safety;
 
   @override
   void initState() {
     super.initState();
     _ownsStore = widget.store == null;
     _store = widget.store ?? ListenerDashboardStore();
+    _safety = widget.safetyRepository ?? MemorySafetyRepository();
     _store.addListener(_onChanged);
   }
 
@@ -55,11 +61,19 @@ class _ListenerDashboardScreenState extends State<ListenerDashboardScreen> {
         builder: (_) => ChatScreen(
           chatStore: chatStore,
           perspective: ChatPerspective.listener,
-          onEscalate: () => _store.escalateChat(sessionId: chat.sessionId),
+          onEscalate: () => _escalate(sessionId: chat.sessionId),
         ),
       ),
     );
     chatStore.dispose();
+  }
+
+  Future<void> _escalate({required String sessionId}) async {
+    await _store.escalateChat(sessionId: sessionId);
+    await _safety.escalateChat(
+      sessionId: sessionId,
+      listenerId: _store.listenerId,
+    );
   }
 
   Future<void> _escalateFromCard(ActiveChatSummary chat) async {
@@ -97,7 +111,7 @@ class _ListenerDashboardScreenState extends State<ListenerDashboardScreen> {
     );
 
     if (confirmed != true || !mounted) return;
-    await _store.escalateChat(sessionId: chat.sessionId);
+    await _escalate(sessionId: chat.sessionId);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -163,6 +177,8 @@ class _ListenerDashboardScreenState extends State<ListenerDashboardScreen> {
                   children: [
                     _TodaySummaryCard(
                       sessionsToday: _store.sessionsToday,
+                      // Pilot: hide demo earnings (PR 20) — volunteer ops.
+                      showDemoEarnings: false,
                       estimatedEarnings: _store.estimatedEarningsDemo,
                     ),
                     const SizedBox(height: 16),
@@ -229,10 +245,14 @@ class _TodaySummaryCard extends StatelessWidget {
   const _TodaySummaryCard({
     required this.sessionsToday,
     required this.estimatedEarnings,
+    this.showDemoEarnings = false,
   });
 
   final int sessionsToday;
   final int estimatedEarnings;
+
+  /// Pilot default false — hide non-real payout UI (PR 20).
+  final bool showDemoEarnings;
 
   @override
   Widget build(BuildContext context) {
@@ -259,28 +279,41 @@ class _TodaySummaryCard extends StatelessWidget {
                   value: '$sessionsToday',
                 ),
               ),
-              Container(
-                width: 1,
-                height: 36,
-                color: scheme.outline.withValues(alpha: 0.22),
-              ),
-              Expanded(
-                child: _SummaryStat(
-                  label: 'Est. earnings',
-                  value: '\$$estimatedEarnings',
-                  caption: '(demo)',
+              if (showDemoEarnings) ...[
+                Container(
+                  width: 1,
+                  height: 36,
+                  color: scheme.outline.withValues(alpha: 0.22),
                 ),
-              ),
+                Expanded(
+                  child: _SummaryStat(
+                    label: 'Est. earnings',
+                    value: '\$$estimatedEarnings',
+                    caption: '(demo)',
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Demo totals only — not real payouts.',
-            style: textTheme.bodySmall?.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.48),
-              fontSize: 11,
+          if (showDemoEarnings) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Demo totals only — not real payouts.',
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurface.withValues(alpha: 0.48),
+                fontSize: 11,
+              ),
             ),
-          ),
+          ] else ...[
+            const SizedBox(height: 10),
+            Text(
+              'Volunteer pilot — no earnings shown.',
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurface.withValues(alpha: 0.48),
+                fontSize: 11,
+              ),
+            ),
+          ],
         ],
       ),
     );

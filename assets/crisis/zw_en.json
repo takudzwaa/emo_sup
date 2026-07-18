@@ -1,0 +1,41 @@
+{
+  "locale": "en",
+  "region": "ZW",
+  "version": "2026-07-19.1",
+  "partnerSignOff": {
+    "partner": "PILOT-PLACEHOLDER — replace with vetted ZW partner",
+    "signedAt": "2026-07-19",
+    "reviewer": "product-owner-confirm",
+    "notes": "English-only pilot pack. Numbers below are public emergency entry points; GBV/suicide lines must be re-validated with a local partner before open enrollment. sn/nd packs blocked until partner review."
+  },
+  "disclaimer": "This app is not an emergency or medical service. If you are in immediate danger, contact local emergency services or someone you trust nearby. Resources outside this app may change — verify numbers when you call.",
+  "resources": [
+    {
+      "id": "zw_police_emergency",
+      "title": "Zimbabwe emergency (police)",
+      "subtitle": "Public emergency line — use if you are in immediate danger",
+      "tel": "999",
+      "icon": "emergency"
+    },
+    {
+      "id": "zw_ambulance",
+      "title": "Ambulance",
+      "subtitle": "Medical emergency transport (public line)",
+      "tel": "994",
+      "icon": "emergency"
+    },
+    {
+      "id": "zw_fire",
+      "title": "Fire brigade",
+      "subtitle": "Fire emergency line",
+      "tel": "993",
+      "icon": "emergency"
+    },
+    {
+      "id": "trusted_person",
+      "title": "Someone you trust nearby",
+      "subtitle": "A friend, family member, neighbour, or community helper can sit with you",
+      "icon": "people"
+    }
+  ]
+}

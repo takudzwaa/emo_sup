@@ -1,14 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:emo_sup/data/crisis/crisis_pack.dart';
 import 'package:emo_sup/main.dart';
 import 'package:emo_sup/screens/safety_privacy_screen.dart';
 
+CrisisPack get _testPack => const CrisisPack(
+      locale: 'en',
+      region: 'ZW',
+      version: 'test',
+      partnerSignOff: CrisisPartnerSignOff(
+        partner: 'test',
+        signedAt: '2026-07-19',
+        reviewer: 'test',
+      ),
+      disclaimer:
+          'This app is not an emergency service. Reach real-world help first.',
+      resources: [
+        CrisisResource(
+          id: 'zw_police_emergency',
+          title: 'Zimbabwe emergency (police)',
+          subtitle: 'Public emergency line',
+          tel: '999',
+          icon: 'emergency',
+        ),
+      ],
+    );
+
+Widget _safetyApp() {
+  return MaterialApp(
+    home: SafetyPrivacyScreen(crisisPackOverride: _testPack),
+  );
+}
+
 void main() {
   testWidgets('Safety hub shows all five section anchors', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: SafetyPrivacyScreen()),
-    );
+    await tester.pumpWidget(_safetyApp());
 
     expect(find.text('Safety & Privacy'), findsOneWidget);
     expect(find.text("If you're in immediate danger"), findsOneWidget);
@@ -23,38 +50,29 @@ void main() {
   });
 
   testWidgets('States app is not emergency or medical service', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: SafetyPrivacyScreen()),
-    );
+    await tester.pumpWidget(_safetyApp());
+    await tester.pumpAndSettle();
 
     expect(
       find.textContaining('not an emergency service'),
       findsWidgets,
     );
     expect(
-      find.textContaining('not a medical service'),
+      find.textContaining('not medical care'),
       findsWidgets,
     );
   });
 
   testWidgets('Crisis resource cards open stub dialog', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: SafetyPrivacyScreen()),
-    );
-
-    await tester.scrollUntilVisible(
-      find.text('Local emergency services'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('Local emergency services'));
+    await tester.pumpWidget(_safetyApp());
     await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('In the full app this would open'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('Local emergency services'), findsWidgets);
+    expect(find.text('Zimbabwe emergency (police)'), findsOneWidget);
+    await tester.tap(find.text('Zimbabwe emergency (police)'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Call 999'), findsOneWidget);
+    expect(find.textContaining('not an emergency service'), findsWidgets);
 
     await tester.tap(find.text('Got it'));
     await tester.pumpAndSettle();
@@ -62,9 +80,7 @@ void main() {
   });
 
   testWidgets('Report form requires reason then submits', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: SafetyPrivacyScreen()),
-    );
+    await tester.pumpWidget(_safetyApp());
 
     final submit = find.widgetWithText(FilledButton, 'Submit report');
     expect(tester.widget<FilledButton>(submit).onPressed, isNull);
@@ -94,9 +110,7 @@ void main() {
 
   testWidgets('Delete my data requires typing DELETE then snackbar',
       (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: SafetyPrivacyScreen()),
-    );
+    await tester.pumpWidget(_safetyApp());
 
     await tester.scrollUntilVisible(
       find.text('Delete my data'),
@@ -128,15 +142,13 @@ void main() {
     await tester.tap(deleteButton);
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('marked for deletion'), findsOneWidget);
+    expect(find.textContaining('Deletion started'), findsOneWidget);
     // Still on hub — no dead-end.
     expect(find.text('Safety & Privacy'), findsOneWidget);
   });
 
   testWidgets('Download my data shows prototype snackbar', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: SafetyPrivacyScreen()),
-    );
+    await tester.pumpWidget(_safetyApp());
 
     await tester.scrollUntilVisible(
       find.text('Download my data'),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/crisis/crisis_pack.dart';
+import '../data/repositories/memory_safety_repository.dart';
+import '../domain/repositories/safety_repository.dart';
 import '../theme/safety_theme.dart';
 import '../widgets/soft_surface.dart';
 import 'legal_stub_screen.dart';
@@ -24,9 +27,20 @@ class SafetyPrivacyScreen extends StatefulWidget {
   const SafetyPrivacyScreen({
     super.key,
     this.initialSection = SafetyHubSection.overview,
+    this.safetyRepository,
+    this.userId = 'local_user',
+    this.crisisPackOverride,
   });
 
   final SafetyHubSection initialSection;
+
+  /// Real reports/blocks/delete pipeline (PR 16–17).
+  final SafetyRepository? safetyRepository;
+
+  final String userId;
+
+  /// When set (tests), skips asset load.
+  final CrisisPack? crisisPackOverride;
 
   @override
   State<SafetyPrivacyScreen> createState() => _SafetyPrivacyScreenState();
@@ -41,10 +55,17 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
   final _protectionKey = GlobalKey();
   final _legalKey = GlobalKey();
 
+  late final SafetyRepository _safety =
+      widget.safetyRepository ?? MemorySafetyRepository();
+
+  CrisisPack? _crisisPack;
+  String? _crisisLoadError;
+
   // Report form
   String? _reportReason;
   final _reportDetailsController = TextEditingController();
   bool _reportSubmitting = false;
+  bool _blocking = false;
 
   static const _reportReasons = <String>[
     'Unwanted or inappropriate messages',
@@ -56,9 +77,30 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCrisisPack();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToInitialSection();
     });
+  }
+
+  Future<void> _loadCrisisPack() async {
+    if (widget.crisisPackOverride != null) {
+      _crisisPack = widget.crisisPackOverride;
+      return;
+    }
+    try {
+      final pack = await CrisisPackLoader.loadEnZw();
+      if (!mounted) return;
+      setState(() {
+        _crisisPack = pack;
+        _crisisLoadError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _crisisLoadError = e.toString();
+      });
+    }
   }
 
   @override
@@ -102,8 +144,15 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
     if (_reportReason == null || _reportSubmitting) return;
     setState(() => _reportSubmitting = true);
 
-    // Prototype: local only. Later → reports/{reportId} in Firestore.
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await _safety.submitReport(
+      reporterId: widget.userId,
+      targetType: 'listener',
+      targetId: 'listener_unspecified',
+      reason: _reportReason!,
+      details: _reportDetailsController.text.trim().isEmpty
+          ? null
+          : _reportDetailsController.text.trim(),
+    );
 
     if (!mounted) return;
     setState(() {
@@ -122,8 +171,26 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
     );
   }
 
+  Future<void> _blockListener() async {
+    if (_blocking) return;
+    setState(() => _blocking = true);
+    final result = await _safety.blockTarget(
+      blockerId: widget.userId,
+      blockedId: 'listener_unspecified',
+    );
+    if (!mounted) return;
+    setState(() => _blocking = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Blocked. Active chats with them were ended (${result.sessionsEnded}).',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _downloadData() async {
-    // Prototype stub — no real export file yet.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
@@ -142,10 +209,14 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
 
     if (shouldDelete != true || !mounted) return;
 
-    // Prototype: acknowledge only. Later → Cloud Function + Auth delete.
+    final result = await _safety.requestDeleteMyData(widget.userId);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Your data has been marked for deletion (prototype).'),
+      SnackBar(
+        content: Text(
+          'Deletion started: ${result.messagesScrubbed} messages removed, '
+          '${result.sessionsUnlinked} sessions closed. Account removal finishes within 24 hours.',
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -231,7 +302,10 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
                           _isHighlighted(SafetyHubSection.crisisResources),
                       eyebrow: 'Crisis resources',
                       title: "If you're in immediate danger",
-                      child: const _CrisisSectionBody(),
+                      child: _CrisisSectionBody(
+                        pack: _crisisPack,
+                        loadError: _crisisLoadError,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -252,6 +326,8 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
                         onReasonChanged: (v) =>
                             setState(() => _reportReason = v),
                         onSubmit: _submitReport,
+                        onBlock: _blockListener,
+                        blocking: _blocking,
                       ),
                     ),
                   ),
@@ -361,49 +437,39 @@ class _SafetySection extends StatelessWidget {
 
 // ─── 1. Crisis ────────────────────────────────────────────────────────────────
 
-class _CrisisResource {
-  const _CrisisResource({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
+class _CrisisSectionBody extends StatelessWidget {
+  const _CrisisSectionBody({
+    this.pack,
+    this.loadError,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-}
+  final CrisisPack? pack;
+  final String? loadError;
 
-class _CrisisSectionBody extends StatelessWidget {
-  const _CrisisSectionBody();
+  IconData _iconFor(String name) {
+    switch (name) {
+      case 'emergency':
+        return Icons.emergency_outlined;
+      case 'people':
+        return Icons.people_outline;
+      default:
+        return Icons.support_agent_outlined;
+    }
+  }
 
-  static const _resources = <_CrisisResource>[
-    _CrisisResource(
-      icon: Icons.emergency_outlined,
-      title: 'Local emergency services',
-      subtitle: 'If you are in immediate danger, call 911 or your region’s number',
-    ),
-    _CrisisResource(
-      icon: Icons.support_agent_outlined,
-      title: 'Regional crisis lines',
-      subtitle: 'Emotional crisis support available where you live',
-    ),
-    _CrisisResource(
-      icon: Icons.people_outline,
-      title: 'Someone you trust nearby',
-      subtitle: 'A friend, family member, or local helper can sit with you',
-    ),
-  ];
-
-  void _openResourceStub(BuildContext context, _CrisisResource resource) {
+  void _openResource(BuildContext context, CrisisResource resource) {
+    final dial = resource.tel;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(resource.title),
         content: Text(
-          'In the full app this would open ${resource.title}. '
-          'This prototype does not launch external links.\n\n'
-          'This app is not an emergency service. If you need help right now, '
-          'use your phone’s dialer or a trusted person nearby.',
+          dial != null
+              ? 'Call $dial from your phone dialer if you need this number.\n\n'
+                  '${resource.subtitle}\n\n'
+                  'This app is not an emergency service and cannot place the call for you.'
+              : '${resource.subtitle}\n\n'
+                  'This app is not an emergency service.',
         ),
         actions: [
           TextButton(
@@ -419,26 +485,49 @@ class _CrisisSectionBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final pack = this.pack;
+
+    if (loadError != null && pack == null) {
+      return Text(
+        'Crisis resources failed to load. If you are in danger, use your '
+        'phone dialer for local emergency services. This app is not an '
+        'emergency service.',
+        style: textTheme.bodyMedium?.copyWith(height: 1.45),
+      );
+    }
+
+    if (pack == null) {
+      return Text(
+        'Loading crisis resources…',
+        style: textTheme.bodyMedium,
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'If you are in immediate danger, reach real-world help first. '
-          'These resources sit outside this app.',
+          pack.disclaimer,
           style: textTheme.bodyMedium?.copyWith(height: 1.45),
         ),
+        const SizedBox(height: 8),
+        Text(
+          'Zimbabwe EN pack v${pack.version} · partner-reviewed metadata present',
+          style: textTheme.bodySmall?.copyWith(
+            color: scheme.onSurface.withValues(alpha: 0.5),
+          ),
+        ),
         const SizedBox(height: 14),
-        for (var i = 0; i < _resources.length; i++) ...[
+        for (var i = 0; i < pack.resources.length; i++) ...[
           if (i > 0) const SizedBox(height: 10),
           SoftCard(
             borderRadius: 14,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            onTap: () => _openResourceStub(context, _resources[i]),
+            onTap: () => _openResource(context, pack.resources[i]),
             child: Row(
               children: [
                 Icon(
-                  _resources[i].icon,
+                  _iconFor(pack.resources[i].icon),
                   color: scheme.primary,
                   size: 26,
                 ),
@@ -448,19 +537,29 @@ class _CrisisSectionBody extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _resources[i].title,
+                        pack.resources[i].title,
                         style: textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _resources[i].subtitle,
+                        pack.resources[i].subtitle,
                         style: textTheme.bodySmall?.copyWith(
                           color: scheme.onSurface.withValues(alpha: 0.65),
                           height: 1.35,
                         ),
                       ),
+                      if (pack.resources[i].tel != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tel: ${pack.resources[i].tel}',
+                          style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: scheme.primary,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -635,6 +734,8 @@ class _ReportForm extends StatelessWidget {
     required this.submitting,
     required this.onReasonChanged,
     required this.onSubmit,
+    required this.onBlock,
+    this.blocking = false,
   });
 
   final List<String> reasons;
@@ -643,6 +744,8 @@ class _ReportForm extends StatelessWidget {
   final bool submitting;
   final ValueChanged<String?> onReasonChanged;
   final VoidCallback onSubmit;
+  final VoidCallback onBlock;
+  final bool blocking;
 
   @override
   Widget build(BuildContext context) {
@@ -722,6 +825,16 @@ class _ReportForm extends StatelessWidget {
                 }
               : null,
           child: Text(submitting ? 'Submitting…' : 'Submit report'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: (submitting || blocking)
+              ? null
+              : () {
+                  HapticFeedback.selectionClick();
+                  onBlock();
+                },
+          child: Text(blocking ? 'Blocking…' : 'Block this listener'),
         ),
       ],
     );
