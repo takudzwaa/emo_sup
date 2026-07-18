@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/discreet_settings.dart';
 import '../config/feature_flags.dart';
 import '../data/booking_store.dart';
 import '../data/chat_store.dart';
@@ -30,6 +31,7 @@ class HomeScreen extends StatefulWidget {
     this.matchRepository,
     this.featureFlags,
     this.safetyRepository,
+    this.discreetSettings,
     this.userId = 'user_quiet_river',
     this.anonymousUsername = 'Quiet River',
   });
@@ -43,6 +45,7 @@ class HomeScreen extends StatefulWidget {
 
   final FeatureFlags? featureFlags;
   final SafetyRepository? safetyRepository;
+  final DiscreetSettings? discreetSettings;
 
   final String userId;
 
@@ -105,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => SafetyPrivacyScreen(
           safetyRepository: widget.safetyRepository,
           userId: widget.userId,
+          discreetSettings: widget.discreetSettings,
         ),
       ),
     );

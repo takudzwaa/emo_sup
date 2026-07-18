@@ -5,8 +5,10 @@ import 'app_services.dart';
 import 'auth/auth_service.dart';
 import 'auth/firebase_auth_service.dart';
 import 'config/app_flavor.dart';
+import 'config/discreet_settings.dart';
 import 'config/feature_flags.dart';
 import 'config/listener_role.dart';
+import 'data/local/settings_store.dart';
 import 'data/repositories/memory_booking_checkout_repository.dart';
 import 'data/repositories/memory_booking_repository.dart';
 import 'data/repositories/memory_chat_repository.dart';
@@ -18,7 +20,10 @@ import 'data/repositories/memory_mood_repository.dart';
 import 'data/repositories/memory_safety_repository.dart';
 import 'data/repositories/memory_user_profile_repository.dart';
 import 'domain/repositories/notification_service.dart';
+import 'domain/repositories/payment_gateway.dart';
+import 'services/membership_activation_service.dart';
 import 'services/payment_service.dart';
+import 'services/staging_mobile_money_gateway.dart';
 
 /// Composition root: flavor + auth + domain repositories.
 ///
@@ -91,6 +96,16 @@ AppServices _memoryServices({
   final chats = MemoryChatRepository.withDemoSession();
   final listenerOps = MemoryListenerOpsRepository();
   final profiles = MemoryUserProfileRepository();
+  final memberships = MemoryMembershipRepository();
+  final notifications = MemoryNotificationService();
+  // Phase A default: Fake. Phase B staging: set FLAVOR=staging and use MM gateway.
+  final PaymentGateway payments = flavor == AppFlavor.staging
+      ? StagingMobileMoneyGateway()
+      : PaymentService(delay: Duration.zero);
+  final discreet = DiscreetSettings(
+    store: MemorySettingsStore(),
+    notifications: notifications,
+  );
   return AppServices(
     flavor: flavor,
     auth: auth,
@@ -98,16 +113,21 @@ AppServices _memoryServices({
     moods: MemoryMoodRepository(),
     bookings: MemoryBookingRepository(),
     listeners: listeners,
-    membership: MemoryMembershipRepository(),
+    membership: memberships,
     chats: chats,
     listenerOps: listenerOps,
     safety: MemorySafetyRepository(chats: chats, profiles: profiles),
     match: MemoryMatchRepository(listeners: listeners, chats: chats),
     bookingCheckout: MemoryBookingCheckoutRepository(listenerOps: listenerOps),
-    notifications: MemoryNotificationService(),
-    payments: PaymentService(delay: Duration.zero),
+    notifications: notifications,
+    payments: payments,
     featureFlags: FeatureFlags(),
     listenerRoleGate: ListenerRoleGate(),
+    discreetSettings: discreet,
+    membershipActivation: MembershipActivationService(
+      memberships: memberships,
+      payments: payments,
+    ),
     firebaseReady: firebaseReady,
   );
 }

@@ -9,16 +9,17 @@ import '../../models/booking.dart';
 import '../../models/listener_profile.dart';
 import '../../models/payment_method.dart';
 import '../../models/payment_result.dart';
+import '../../services/membership_activation_service.dart';
 import '../../services/payment_service.dart';
 import '../../widgets/safety_quick_access_bar.dart';
 import '../../widgets/soft_surface.dart';
 import 'booking_success_screen.dart';
 
-/// Demo multi-method checkout for premium sessions (PR 13–14).
+/// Demo multi-method checkout for premium sessions (PR 13–14 / 22).
 ///
 /// Flow: [BookingCheckoutRepository.createBookingCheckout] (pending_payment)
-/// → [PaymentGateway.charge] (FakePaymentGateway) → confirmPayment.
-/// Never charges real money in Phase A.
+/// → [PaymentGateway.charge] (Fake / Staging MM) → confirmPayment.
+/// Plan path uses [MembershipActivationService] (PR 22).
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({
     super.key,
@@ -28,6 +29,7 @@ class CheckoutScreen extends StatefulWidget {
     required this.slot,
     this.paymentService,
     this.checkoutRepository,
+    this.membershipActivation,
   });
 
   final BookingStore store;
@@ -40,6 +42,8 @@ class CheckoutScreen extends StatefulWidget {
 
   /// Injectable checkout (memory stand-in for CF createBookingCheckout).
   final BookingCheckoutRepository? checkoutRepository;
+
+  final MembershipActivationService? membershipActivation;
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
@@ -134,9 +138,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (_processing) return;
     setState(() => _processing = true);
 
-    final result = await _paymentService.subscribe(
+    final activation = widget.membershipActivation ??
+        MembershipActivationService(
+          memberships: widget.membershipStore.repository,
+          payments: _paymentService,
+        );
+
+    final result = await activation.subscribe(
+      userId: widget.store.currentUserId,
       method: _method,
-      amountCents: PaymentService.planPriceCents,
       cardNumber: _cardNumber.text,
       exp: _cardExp.text,
       cvc: _cardCvc.text,
@@ -146,13 +156,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     if (!mounted) return;
 
-    if (!result.isSuccess) {
+    if (!result.ok) {
       setState(() => _processing = false);
-      _showDecline(result);
+      _showDecline(result.payment);
       return;
     }
 
-    widget.membershipStore.activatePlan();
+    // Mirror server membership into UI store.
+    widget.membershipStore.activatePlan(
+      planId: result.membership?.planId ?? 'plan_monthly_29',
+    );
 
     final booking = widget.store.confirmBooking(
       listenerId: widget.listener.id,
@@ -163,7 +176,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentStatus: 'plan',
     );
 
-    await _finishSuccess(booking, result.message);
+    await _finishSuccess(booking, result.payment.message);
   }
 
   void _showDecline(PaymentResult result) {

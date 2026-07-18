@@ -182,6 +182,14 @@ service cloud.firestore {
       allow list, create, update, delete: if false;
     }
 
+    // ── memberships (PR 22: server write only) ────────────
+    match /memberships/{uid} {
+      allow get: if isSelf(uid);
+      allow list: if false;
+      // activate via payment webhook / MembershipActivation CF only
+      allow create, update, delete: if false;
+    }
+
     // ── reports (write-once for submitter) ─────────────────
     match /reports/{reportId} {
       allow list, get: if false;

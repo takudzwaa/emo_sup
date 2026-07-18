@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../config/discreet_settings.dart';
 import '../data/crisis/crisis_pack.dart';
 import '../data/repositories/memory_safety_repository.dart';
 import '../domain/repositories/safety_repository.dart';
@@ -30,6 +31,7 @@ class SafetyPrivacyScreen extends StatefulWidget {
     this.safetyRepository,
     this.userId = 'local_user',
     this.crisisPackOverride,
+    this.discreetSettings,
   });
 
   final SafetyHubSection initialSection;
@@ -41,6 +43,9 @@ class SafetyPrivacyScreen extends StatefulWidget {
 
   /// When set (tests), skips asset load.
   final CrisisPack? crisisPackOverride;
+
+  /// Device privacy: discreet mode + app lock (PR 21).
+  final DiscreetSettings? discreetSettings;
 
   @override
   State<SafetyPrivacyScreen> createState() => _SafetyPrivacyScreenState();
@@ -359,6 +364,17 @@ class _SafetyPrivacyScreenState extends State<SafetyPrivacyScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // 4b. Device privacy (PR 21)
+                  if (widget.discreetSettings != null) ...[
+                    _SafetySection(
+                      title: 'On this device',
+                      child: _DevicePrivacySection(
+                        settings: widget.discreetSettings!,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // 5. Legal
                   KeyedSubtree(
@@ -1019,6 +1035,116 @@ class _MessageProtectionBody extends StatelessWidget {
           style: textTheme.bodyMedium?.copyWith(height: 1.45),
         ),
       ],
+    );
+  }
+}
+
+// ─── 4b. Device privacy ───────────────────────────────────────────────────────
+
+class _DevicePrivacySection extends StatefulWidget {
+  const _DevicePrivacySection({required this.settings});
+
+  final DiscreetSettings settings;
+
+  @override
+  State<_DevicePrivacySection> createState() => _DevicePrivacySectionState();
+}
+
+class _DevicePrivacySectionState extends State<_DevicePrivacySection> {
+  final _pinController = TextEditingController();
+  String? _pinError;
+
+  @override
+  void dispose() {
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleLock(bool enable) async {
+    if (enable) {
+      final pin = _pinController.text;
+      final ok = await widget.settings.enableAppLock(pin);
+      if (!ok) {
+        setState(() => _pinError = 'Enter a 4-digit PIN to enable lock.');
+        return;
+      }
+      setState(() => _pinError = null);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('App lock on. You’ll need your PIN after restart.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else {
+      final ok = widget.settings.verifyPin(_pinController.text);
+      if (!ok) {
+        setState(() => _pinError = 'Enter current PIN to turn lock off.');
+        return;
+      }
+      await widget.settings.disableAppLock(currentPin: _pinController.text);
+      setState(() => _pinError = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = widget.settings;
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return ListenableBuilder(
+      listenable: settings,
+      builder: (context, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'For shared phones at home. Discreet mode hides the app name; '
+              'app lock asks for a PIN. Notification text stays hidden by default.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurface.withValues(alpha: 0.75),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Discreet mode'),
+              subtitle: Text(
+                settings.discreetMode
+                    ? 'App title shows as “Notes”'
+                    : 'Show normal app name',
+              ),
+              value: settings.discreetMode,
+              onChanged: (v) => settings.setDiscreetMode(v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('App lock'),
+              subtitle: Text(
+                settings.appLockEnabled
+                    ? 'PIN required when the app opens'
+                    : 'Off — set a 4-digit PIN below to enable',
+              ),
+              value: settings.appLockEnabled,
+              onChanged: (v) => _toggleLock(v),
+            ),
+            TextField(
+              controller: _pinController,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 4,
+              decoration: InputDecoration(
+                labelText: '4-digit PIN',
+                counterText: '',
+                errorText: _pinError,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

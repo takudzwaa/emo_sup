@@ -5,12 +5,13 @@ import 'l10n/app_localizations.dart';
 import 'app_services.dart';
 import 'auth/auth_controller.dart';
 import 'auth/auth_service.dart';
+import 'config/discreet_settings.dart';
 import 'data/booking_store.dart';
 import 'data/membership_store.dart';
 import 'data/mood_store.dart';
-import 'domain/repositories/match_repository.dart';
 import 'firebase_bootstrap.dart';
 import 'models/user_profile.dart';
+import 'screens/app_lock_screen.dart';
 import 'screens/auth/auth_flow.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
@@ -18,6 +19,7 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final services = await createAppServices();
+  await services.discreetSettings.load();
   final authController = AuthController(
     authService: services.auth,
     profileRepository: services.profiles,
@@ -34,8 +36,10 @@ class EmoSupApp extends StatelessWidget {
     BookingStore? bookingStore,
     MembershipStore? membershipStore,
     this.services,
+    DiscreetSettings? discreetSettings,
   })  : bookingStore = bookingStore ?? BookingStore(),
-        membershipStore = membershipStore ?? MembershipStore();
+        membershipStore = membershipStore ?? MembershipStore(),
+        discreetSettings = discreetSettings ?? DiscreetSettings();
 
   /// Preferred production/prototype entry: wire stores from [AppServices].
   factory EmoSupApp.fromServices(
@@ -44,6 +48,7 @@ class EmoSupApp extends StatelessWidget {
   }) {
     return EmoSupApp(
       services: services,
+      discreetSettings: services.discreetSettings,
       moodStore: MoodStore(repository: services.moods),
       bookingStore: BookingStore(
         bookingRepository: services.bookings,
@@ -63,41 +68,50 @@ class EmoSupApp extends StatelessWidget {
   final BookingStore bookingStore;
   final MembershipStore membershipStore;
   final AppServices? services;
+  final DiscreetSettings discreetSettings;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: ListenableBuilder(
-        listenable: authController,
-        builder: (context, _) {
-          final profile = authController.profile;
-          if (profile == null) {
-            return AuthFlow(authController: authController);
-          }
-          return HomeScreen(
-            moodStore: moodStore,
-            bookingStore: bookingStore,
-            membershipStore: membershipStore,
-            matchRepository: services?.match,
-            featureFlags: services?.featureFlags,
-            safetyRepository: services?.safety,
-            userId: profile.uid,
-            anonymousUsername: profile.anonymousName,
-          );
-        },
-      ),
+    return ListenableBuilder(
+      listenable: Listenable.merge([authController, discreetSettings]),
+      builder: (context, _) {
+        return MaterialApp(
+          onGenerateTitle: (context) => discreetSettings.displayAppTitle,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: ThemeMode.system,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: _home(),
+        );
+      },
+    );
+  }
+
+  Widget _home() {
+    if (discreetSettings.isLocked) {
+      return AppLockScreen(settings: discreetSettings);
+    }
+    final profile = authController.profile;
+    if (profile == null) {
+      return AuthFlow(authController: authController);
+    }
+    return HomeScreen(
+      moodStore: moodStore,
+      bookingStore: bookingStore,
+      membershipStore: membershipStore,
+      matchRepository: services?.match,
+      featureFlags: services?.featureFlags,
+      safetyRepository: services?.safety,
+      discreetSettings: discreetSettings,
+      userId: profile.uid,
+      anonymousUsername: profile.anonymousName,
     );
   }
 }
@@ -108,6 +122,7 @@ EmoSupApp buildTestApp({
   AuthController? authController,
   BookingStore? bookingStore,
   MembershipStore? membershipStore,
+  DiscreetSettings? discreetSettings,
   bool signedIn = true,
 }) {
   final auth =
@@ -122,10 +137,13 @@ EmoSupApp buildTestApp({
       ),
     );
   }
+  final discreet = discreetSettings ?? DiscreetSettings();
+  // Tests start unlocked unless settings explicitly lock.
   return EmoSupApp(
     moodStore: moodStore ?? MoodStore(),
     authController: auth,
     bookingStore: bookingStore,
     membershipStore: membershipStore,
+    discreetSettings: discreet,
   );
 }

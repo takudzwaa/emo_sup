@@ -1,5 +1,6 @@
 import 'auth/auth_service.dart';
 import 'config/app_flavor.dart';
+import 'config/discreet_settings.dart';
 import 'config/feature_flags.dart';
 import 'config/listener_role.dart';
 import 'domain/repositories/booking_checkout_repository.dart';
@@ -14,6 +15,7 @@ import 'domain/repositories/notification_service.dart';
 import 'domain/repositories/payment_gateway.dart';
 import 'domain/repositories/safety_repository.dart';
 import 'domain/repositories/user_profile_repository.dart';
+import 'services/membership_activation_service.dart';
 import 'services/payment_service.dart';
 
 /// Composition root for the app — auth + domain repositories.
@@ -39,6 +41,8 @@ class AppServices {
     required this.payments,
     required this.featureFlags,
     required this.listenerRoleGate,
+    required this.discreetSettings,
+    required this.membershipActivation,
     this.firebaseReady = false,
   });
 
@@ -58,6 +62,8 @@ class AppServices {
   final PaymentGateway payments;
   final FeatureFlags featureFlags;
   final ListenerRoleGate listenerRoleGate;
+  final DiscreetSettings discreetSettings;
+  final MembershipActivationService membershipActivation;
 
   /// True when Firebase.initializeApp succeeded (staging/prod path).
   final bool firebaseReady;

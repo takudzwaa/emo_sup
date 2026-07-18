@@ -314,3 +314,33 @@ export const deleteMyData = onCall(async (request) => {
 
   return { messagesScrubbed, authDeleteWithinHours: 24 };
 });
+
+/**
+ * activateMembership — after payment success (PR 22).
+ * Client never writes memberships/{uid}.
+ */
+export const activateMembership = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  const uid = request.auth.uid;
+  const planId = String(request.data?.planId ?? 'plan_monthly_29');
+  const paymentId = String(request.data?.paymentId ?? '');
+  // Production: verify paymentId against payments ledger / gateway webhook.
+  if (!paymentId) {
+    throw new HttpsError('invalid-argument', 'paymentId required.');
+  }
+  const renewsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.doc(`memberships/${uid}`).set(
+    {
+      uid,
+      tier: 'planActive',
+      planId,
+      renewsAt: admin.firestore.Timestamp.fromDate(renewsAt),
+      lastPaymentId: paymentId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+  return { planId, renewsAt: renewsAt.toISOString() };
+});
