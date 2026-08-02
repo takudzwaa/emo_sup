@@ -17,8 +17,7 @@ abstract class NotificationService {
 
 /// In-memory / no-op notifications for prototype + tests.
 class MemoryNotificationService implements NotificationService {
-  MemoryNotificationService({bool allowBodies = false})
-      : _allowBodies = allowBodies;
+  MemoryNotificationService({this._allowBodies = false});
 
   bool _allowBodies;
   final Map<String, String> tokens = {};

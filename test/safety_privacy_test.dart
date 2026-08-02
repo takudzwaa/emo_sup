@@ -175,7 +175,7 @@ void main() {
     await tester.tap(find.text('Terms of Service'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('prototype placeholder'), findsOneWidget);
+    expect(find.textContaining('What this app is'), findsOneWidget);
 
     await tester.pageBack();
     await tester.pumpAndSettle();

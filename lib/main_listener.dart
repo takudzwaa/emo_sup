@@ -4,8 +4,8 @@ import 'l10n/app_localizations.dart';
 
 import 'config/listener_role.dart';
 import 'data/listener_dashboard_store.dart';
-import 'data/repositories/memory_safety_repository.dart';
 import 'domain/repositories/safety_repository.dart';
+import 'firebase_bootstrap.dart';
 import 'screens/listener/listener_dashboard_screen.dart';
 import 'theme/listener_theme.dart';
 
@@ -13,17 +13,26 @@ import 'theme/listener_theme.dart';
 ///
 /// Run with:
 /// ```
-/// flutter run -t lib/main_listener.dart --dart-define=LISTENER_CLAIM=true
+/// # Staging demo without a real claim:
+/// flutter run -t lib/main_listener.dart --dart-define=FLAVOR=staging --dart-define=LISTENER_CLAIM=true
+/// # Prod / real claim (role=listener on the signed-in user):
+/// flutter run -t lib/main_listener.dart --dart-define=FLAVOR=prod
 /// ```
-///
-/// Without a listener claim, shows a blocked screen (PR 20).
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final gate = ListenerRoleGate();
+  final services = await createAppServices();
+  final gate = services.listenerRoleGate;
+  final uid = services.auth.currentUid ?? 'listener_unknown';
   runApp(
     ListenerApp(
       roleGate: gate,
-      safetyRepository: MemorySafetyRepository(),
+      store: ListenerDashboardStore(
+        listenerId: uid,
+        repository: services.listenerOps,
+        chatRepository: services.chats,
+        safetyRepository: services.safety,
+      ),
+      safetyRepository: services.safety,
     ),
   );
 }
@@ -57,12 +66,16 @@ class ListenerApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      home: gate.isListener
-          ? ListenerDashboardScreen(
-              store: store,
-              safetyRepository: safetyRepository,
-            )
-          : const _NotAListenerScreen(),
+      // Rebuild when the role claim resolves (sign-in / token refresh).
+      home: ListenableBuilder(
+        listenable: gate,
+        builder: (context, _) => gate.isListener
+            ? ListenerDashboardScreen(
+                store: store,
+                safetyRepository: safetyRepository,
+              )
+            : const _NotAListenerScreen(),
+      ),
     );
   }
 }
@@ -79,28 +92,22 @@ class _NotAListenerScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(28),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Spacer(),
-              Icon(Icons.lock_outline, size: 48, color: scheme.primary),
-              const SizedBox(height: 20),
               Text(
                 'Not a listener account',
-                style: textTheme.headlineSmall,
-                textAlign: TextAlign.center,
+                style: textTheme.headlineSmall?.copyWith(
+                  color: scheme.onSurface,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
-                'This dashboard is only for vetted listeners. '
-                'If you were approved, sign out and back in after your claim is set, '
-                'or use a build with LISTENER_CLAIM=true for local demos.',
+                'This entry is for vetted listeners with a role claim. '
+                'If you need support, open the main app instead.',
                 style: textTheme.bodyLarge?.copyWith(
-                  color: scheme.onSurface.withValues(alpha: 0.7),
-                  height: 1.45,
+                  color: scheme.onSurfaceVariant,
                 ),
-                textAlign: TextAlign.center,
               ),
-              const Spacer(flex: 2),
             ],
           ),
         ),

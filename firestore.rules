@@ -127,15 +127,26 @@ service cloud.firestore {
       // PR 10: matchmaking is CF-only — clients cannot invent sessions.
       allow create: if false;
 
+      // Allowlist, not denylist: client may ONLY perform the two writes the
+      // app actually makes (mark-as-read counters, end-session transition).
+      // Everything else — status flips away from 'ended'/'escalated',
+      // display names, ids, quota fields — is server(Admin SDK)-only.
       allow update: if signedIn()
         && (resource.data.userId == request.auth.uid
             || (isListener() && resource.data.listenerId == request.auth.uid))
-        && !request.resource.data.diff(resource.data)
-            .affectedKeys()
-            .hasAny([
-              'userId', 'listenerId', 'startedAt',
-              'quotaCharged', 'quotaWeekId', 'quotaRefunded'
-            ]);
+        && (
+          // Mark-as-read: resets both unread counters to 0.
+          (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['userUnreadCount', 'listenerUnreadCount'])
+            && request.resource.data.userUnreadCount == 0
+            && request.resource.data.listenerUnreadCount == 0)
+          ||
+          // End session: status -> 'ended' with a server timestamp only.
+          (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'endedAt'])
+            && request.resource.data.status == 'ended'
+            && request.resource.data.endedAt is timestamp)
+        );
 
       allow delete: if false;
 

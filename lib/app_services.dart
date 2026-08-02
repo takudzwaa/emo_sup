@@ -18,7 +18,6 @@ import 'domain/repositories/user_profile_repository.dart';
 import 'services/analytics_service.dart';
 import 'services/app_check_service.dart';
 import 'services/membership_activation_service.dart';
-import 'services/payment_service.dart';
 
 /// Composition root for the app — auth + domain repositories.
 ///

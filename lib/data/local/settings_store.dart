@@ -1,8 +1,10 @@
+import 'package:shared_preferences/shared_preferences.dart';
+
 /// Local device settings (PR 21).
 ///
-/// Prototype uses [MemorySettingsStore]. Production should back PIN with
-/// platform secure storage (`flutter_secure_storage`) and flags with
-/// `shared_preferences` — same interface, different adapter.
+/// Prototype uses [MemorySettingsStore]; staging/prod use
+/// [SharedPreferencesSettingsStore] so app-lock/discreet-mode survive
+/// restarts.
 abstract class SettingsStore {
   Future<bool> getDiscreetMode();
   Future<void> setDiscreetMode(bool value);
@@ -42,6 +44,46 @@ class MemorySettingsStore implements SettingsStore {
   @override
   Future<void> setAppLockEnabled(bool value) async {
     appLockEnabled = value;
+  }
+}
+
+/// Device-persistent settings via `shared_preferences`.
+class SharedPreferencesSettingsStore implements SettingsStore {
+  static const _kDiscreetMode = 'settings.discreetMode';
+  static const _kPinHash = 'settings.pinHash';
+  static const _kAppLockEnabled = 'settings.appLockEnabled';
+
+  Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
+
+  @override
+  Future<bool> getDiscreetMode() async =>
+      (await _prefs).getBool(_kDiscreetMode) ?? false;
+
+  @override
+  Future<void> setDiscreetMode(bool value) async {
+    await (await _prefs).setBool(_kDiscreetMode, value);
+  }
+
+  @override
+  Future<String?> getPinHash() async => (await _prefs).getString(_kPinHash);
+
+  @override
+  Future<void> setPinHash(String? hash) async {
+    final prefs = await _prefs;
+    if (hash == null) {
+      await prefs.remove(_kPinHash);
+    } else {
+      await prefs.setString(_kPinHash, hash);
+    }
+  }
+
+  @override
+  Future<bool> getAppLockEnabled() async =>
+      (await _prefs).getBool(_kAppLockEnabled) ?? false;
+
+  @override
+  Future<void> setAppLockEnabled(bool value) async {
+    await (await _prefs).setBool(_kAppLockEnabled, value);
   }
 }
 

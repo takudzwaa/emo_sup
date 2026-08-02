@@ -23,10 +23,22 @@ class CrisisPack {
   final String disclaimer;
   final List<CrisisResource> resources;
 
+  /// Markers used in pilot/scaffold packs before a real local partner has
+  /// reviewed and signed off. A non-empty field is not enough on its own —
+  /// "PILOT-PLACEHOLDER — replace with vetted ZW partner" is non-empty and
+  /// would otherwise satisfy a naive check while shipping fake sign-off.
+  static const _placeholderMarkers = ['PLACEHOLDER', 'TBD', 'TODO'];
+
+  static bool _looksReal(String value) {
+    final upper = value.toUpperCase();
+    return value.isNotEmpty &&
+        !_placeholderMarkers.any(upper.contains);
+  }
+
   bool get isSignedOff =>
-      partnerSignOff.partner.isNotEmpty &&
+      _looksReal(partnerSignOff.partner) &&
       partnerSignOff.signedAt.isNotEmpty &&
-      partnerSignOff.reviewer.isNotEmpty;
+      _looksReal(partnerSignOff.reviewer);
 
   factory CrisisPack.fromJson(Map<String, dynamic> json) {
     final sign = json['partnerSignOff'] as Map<String, dynamic>? ?? {};

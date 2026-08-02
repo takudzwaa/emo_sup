@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/feature_flags.dart';
 import '../data/booking_store.dart';
 import '../data/membership_store.dart';
 import '../models/listener_profile.dart';
@@ -17,11 +18,13 @@ class SlotPickerScreen extends StatefulWidget {
     required this.store,
     required this.membershipStore,
     required this.listener,
+    this.featureFlags,
   });
 
   final BookingStore store;
   final MembershipStore membershipStore;
   final ListenerProfile listener;
+  final FeatureFlags? featureFlags;
 
   @override
   State<SlotPickerScreen> createState() => _SlotPickerScreenState();
@@ -54,6 +57,7 @@ class _SlotPickerScreenState extends State<SlotPickerScreen> {
         builder: (_) => BookingConfirmScreen(
           store: widget.store,
           membershipStore: widget.membershipStore,
+          featureFlags: widget.featureFlags,
           listener: widget.listener,
           slot: slot,
         ),

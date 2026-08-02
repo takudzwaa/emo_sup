@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "emo-sup-staging",
+    "staging": "emo-sup-staging",
+    "prod": "emo-sup-prod"
+  }
+}

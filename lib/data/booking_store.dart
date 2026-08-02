@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../domain/repositories/booking_repository.dart';
@@ -22,20 +24,54 @@ class BookingStore extends ChangeNotifier {
             MemoryBookingRepository(seedBookings: seedBookings),
         listenerDirectory = listenerDirectory ??
             MemoryListenerDirectoryRepository(listeners: listeners) {
-    // Sync seed for UI: prefer injected lists, else memory defaults.
+    final repo = this.bookingRepository;
+    final dir = this.listenerDirectory;
+    final useMemorySeeds =
+        repo is MemoryBookingRepository && dir is MemoryListenerDirectoryRepository;
     _listeners = List.unmodifiable(
-      listeners ?? MemoryListenerDirectoryRepository.defaultListeners(),
+      listeners ??
+          (useMemorySeeds
+              ? MemoryListenerDirectoryRepository.defaultListeners()
+              : const <ListenerProfile>[]),
     );
     _bookings = List<Booking>.from(
-      seedBookings ?? MemoryBookingRepository.defaultSeedBookings(),
+      seedBookings ??
+          (useMemorySeeds
+              ? MemoryBookingRepository.defaultSeedBookings()
+              : const <Booking>[]),
     );
+    if (!useMemorySeeds) {
+      _bindRemote();
+    }
+  }
+
+  StreamSubscription<List<Booking>>? _bookingsSub;
+  StreamSubscription<List<ListenerProfile>>? _listenersSub;
+
+  void _bindRemote() {
+    _listenersSub = listenerDirectory.watchListeners().listen((list) {
+      _listeners = List.unmodifiable(list);
+      notifyListeners();
+    });
+    _bookingsSub =
+        bookingRepository.watchUserBookings(currentUserId).listen((list) {
+      _bookings = List<Booking>.from(list);
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _bookingsSub?.cancel();
+    _listenersSub?.cancel();
+    super.dispose();
   }
 
   final String currentUserId;
   final BookingRepository bookingRepository;
   final ListenerDirectoryRepository listenerDirectory;
 
-  late final List<ListenerProfile> _listeners;
+  late List<ListenerProfile> _listeners;
   late List<Booking> _bookings;
   int _idCounter = 10;
 

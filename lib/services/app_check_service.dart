@@ -1,3 +1,4 @@
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 
 import '../config/app_flavor.dart';
@@ -6,9 +7,6 @@ import '../config/app_flavor.dart';
 ///
 /// Production: Play Integrity (Android) + App Attest/DeviceCheck (iOS) via
 /// `firebase_app_check`. Staging: debug provider tokens.
-///
-/// This interface ships now so call sites exist; real provider activation
-/// requires a linked Firebase project + native config.
 abstract class AppCheckService {
   /// Whether enforcement is active (reject unattested clients server-side).
   bool get enforcementEnabled;
@@ -22,10 +20,9 @@ abstract class AppCheckService {
 /// Prototype / unconfigured project: no-op with clear staging notes.
 class MemoryAppCheckService implements AppCheckService {
   MemoryAppCheckService({
-    AppFlavor flavor = AppFlavor.prototype,
-    bool forceEnforce = false,
-  })  : _flavor = flavor,
-        _forceEnforce = forceEnforce;
+    this._flavor = AppFlavor.prototype,
+    this._forceEnforce = false,
+  });
 
   final AppFlavor _flavor;
   final bool _forceEnforce;
@@ -59,5 +56,39 @@ class MemoryAppCheckService implements AppCheckService {
   Future<String?> getDebugTokenHint() async {
     if (_flavor == AppFlavor.prod) return null;
     return 'debug-token-register-in-firebase-console';
+  }
+}
+
+/// Real attestation via `firebase_app_check`.
+///
+/// Debug builds use the debug provider (token printed to console once —
+/// register it under App Check > Debug tokens in the Firebase Console).
+/// Release builds use Play Integrity / App Attest with DeviceCheck fallback.
+class FirebaseAppCheckService implements AppCheckService {
+  FirebaseAppCheckService({required this._flavor});
+
+  final AppFlavor _flavor;
+
+  @override
+  bool get enforcementEnabled => _flavor == AppFlavor.prod;
+
+  @override
+  Future<void> activate() async {
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kDebugMode
+          ? AndroidDebugProvider()
+          : AndroidPlayIntegrityProvider(),
+      providerApple: kDebugMode
+          ? AppleDebugProvider()
+          : AppleAppAttestWithDeviceCheckFallbackProvider(),
+    );
+    debugPrint('App Check activated (${_flavor.name}).');
+  }
+
+  @override
+  Future<String?> getDebugTokenHint() async {
+    if (!kDebugMode || _flavor == AppFlavor.prod) return null;
+    return 'Debug provider prints its token to the console on first launch — '
+        'register it in Firebase Console > App Check > Debug tokens.';
   }
 }

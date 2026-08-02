@@ -199,6 +199,90 @@ describe('chats create denied (PR 10)', () => {
   });
 });
 
+describe('chats update allowlist (safety escalation lockdown)', () => {
+  async function seedActiveChat(overrides = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('chats').doc('chat_1').set({
+        userId: 'user_chat',
+        listenerId: 'listener_1',
+        startedAt: new Date().toISOString(),
+        status: 'active',
+        userDisplayName: 'Quiet River',
+        listenerDisplayName: 'Listener — Amara K.',
+        userUnreadCount: 3,
+        listenerUnreadCount: 2,
+        ...overrides,
+      });
+    });
+  }
+
+  it('allows a participant to zero both unread counters', async () => {
+    await seedActiveChat();
+    const db = authedDb('user_chat');
+    await assertSucceeds(
+      db.collection('chats').doc('chat_1').set(
+        { userUnreadCount: 0, listenerUnreadCount: 0 },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('denies a mark-as-read write that leaves a counter non-zero', async () => {
+    await seedActiveChat();
+    const db = authedDb('user_chat');
+    await assertFails(
+      db.collection('chats').doc('chat_1').set(
+        { userUnreadCount: 0, listenerUnreadCount: 5 },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('allows a participant to end the session', async () => {
+    await seedActiveChat();
+    const db = authedDb('listener_1', { role: 'listener' });
+    await assertSucceeds(
+      db.collection('chats').doc('chat_1').set(
+        { status: 'ended', endedAt: new Date() },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('denies reverting an escalated chat back to active', async () => {
+    await seedActiveChat({ status: 'escalated' });
+    const db = authedDb('user_chat');
+    await assertFails(
+      db.collection('chats').doc('chat_1').set(
+        { status: 'active' },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('denies a participant rewriting display names', async () => {
+    await seedActiveChat();
+    const db = authedDb('user_chat');
+    await assertFails(
+      db.collection('chats').doc('chat_1').set(
+        { listenerDisplayName: 'Someone Else' },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('denies a non-participant from updating the chat at all', async () => {
+    await seedActiveChat();
+    const db = authedDb('stranger_1');
+    await assertFails(
+      db.collection('chats').doc('chat_1').set(
+        { userUnreadCount: 0, listenerUnreadCount: 0 },
+        { merge: true },
+      ),
+    );
+  });
+});
+
 describe('bookings server-only writes (PR 9)', () => {
   it('denies client booking create', async () => {
     const db = authedDb('user_book');

@@ -1,3 +1,4 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 
 /// Privacy-respecting product analytics (PR 24).
@@ -77,6 +78,44 @@ class MemoryAnalyticsService implements AnalyticsService {
       ..remove('body')
       ..remove('content');
     events.add((name: name, params: safe));
+  }
+}
+
+/// Firebase Analytics sink with the same allowlist + gamification ban as
+/// [MemoryAnalyticsService]. Values are coerced to String/num (the only
+/// types GA accepts); free-text keys are always stripped.
+class FirebaseAnalyticsAdapter implements AnalyticsService {
+  FirebaseAnalyticsAdapter({FirebaseAnalytics? analytics})
+      : _analytics = analytics ?? FirebaseAnalytics.instance;
+
+  final FirebaseAnalytics _analytics;
+
+  static const _contentKeys = {'text', 'message', 'body', 'content'};
+
+  @override
+  Future<void> logEvent(
+    String name, [
+    Map<String, Object?> params = const {},
+  ]) async {
+    if (MemoryAnalyticsService.isBanned(name)) {
+      debugPrint('Analytics BAN: refused event "$name" (gamification/privacy)');
+      return;
+    }
+    if (!MemoryAnalyticsService.isAllowed(name)) {
+      debugPrint('Analytics skip: "$name" not on pilot allowlist');
+      return;
+    }
+    final safe = <String, Object>{};
+    params.forEach((key, value) {
+      if (value == null || _contentKeys.contains(key)) return;
+      safe[key] = value is num ? value : value.toString();
+    });
+    try {
+      await _analytics.logEvent(name: name, parameters: safe);
+    } catch (e) {
+      // Analytics must never break a user flow.
+      debugPrint('Analytics send failed: $e');
+    }
   }
 }
 

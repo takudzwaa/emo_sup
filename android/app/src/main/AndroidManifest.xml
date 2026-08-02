@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Runtime notification permission (Android 13+), prompted via
+         FirebaseMessaging.requestPermission on token registration. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="emo_sup"
+        android:label="Emo Sup"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

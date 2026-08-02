@@ -32,6 +32,13 @@
       "icon": "emergency"
     },
     {
+      "id": "zw_mental_health_directory",
+      "title": "Thola usizo lwezengqondo noma lokuvimbela ukuzibulala",
+      "subtitle": "Uhlu lwezinombolo ezisiza eZimbabwe oluvela ku-findahelpline.com. Izinombolo zingashintsha — qinisekisa uma ushaya ucingo.",
+      "url": "https://findahelpline.com/countries/zw",
+      "icon": "support"
+    },
+    {
       "id": "trusted_person",
       "title": "Othile othembekile eduze",
       "subtitle": "Umngane, umndeni, umakhelwane, noma umsizi womphakathi",

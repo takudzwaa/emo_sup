@@ -53,6 +53,33 @@ app.*.map.json
 
 .superpowers/
 
-# Platform build outputs
-android/build/
-ios/Pods/
+# Firebase secrets (never commit service accounts)
+**/serviceAccount*.json
+functions/node_modules/
+functions/lib/
+
+# Android release signing (never commit)
+android/key.properties
+android/**/*.jks
+android/**/*.keystore
+
+# Gradle build output (not source)
+/android/build/
+
+# Per-flavor Firebase client config: release process copies the *-prod /
+# *-Prod variant over the default before a store build (see README). Keep
+# these out of git so that manual-copy step can't silently drift or leak
+# which project a given checkout is pointed at.
+android/app/google-services.json
+android/app/google-services-prod.json
+ios/Runner/GoogleService-Info.plist
+ios/Runner/GoogleService-Info-Prod.plist
+
+# Local env overrides (committed .env.<project> files are non-secret flags only)
+functions/.env.local
+.env
+.env.*
+!.env.example
+!functions/.env.emo-sup-staging
+!functions/.env.emo-sup-prod
+

@@ -31,5 +31,52 @@
       "port": 4000
     },
     "singleProjectMode": true
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "emo-sup-staging",
+          "appId": "1:988752876591:android:2825d62e2eec20c652a2da",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "emo-sup-staging",
+          "appId": "1:988752876591:ios:0975f2a0212f09bb52a2da",
+          "uploadDebugSymbols": true,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "emo-sup-staging",
+          "configurations": {
+            "android": "1:988752876591:android:2825d62e2eec20c652a2da",
+            "ios": "1:988752876591:ios:0975f2a0212f09bb52a2da"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "/legal/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
+      }
+    ]
   }
 }

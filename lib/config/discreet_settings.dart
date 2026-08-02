@@ -10,9 +10,8 @@ import '../domain/repositories/notification_service.dart';
 class DiscreetSettings extends ChangeNotifier {
   DiscreetSettings({
     SettingsStore? store,
-    NotificationService? notifications,
-  })  : _store = store ?? MemorySettingsStore(),
-        _notifications = notifications;
+    this._notifications,
+  }) : _store = store ?? MemorySettingsStore();
 
   final SettingsStore _store;
   final NotificationService? _notifications;

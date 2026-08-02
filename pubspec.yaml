@@ -1,8 +1,6 @@
 name: emo_sup
-description: "A new Flutter project."
-# The following line prevents the package from being accidentally published to
-# pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+description: "Confidential emotional support app — private 1:1 chat and bookings with trained listeners. Not therapy or medical care."
+publish_to: 'none'
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -42,6 +40,11 @@ dependencies:
   cloud_firestore: ^6.7.1
   cloud_functions: ^6.3.5
   firebase_crashlytics: ^5.2.6
+  firebase_messaging: ^16.0.0
+  firebase_app_check: ^0.4.5+2
+  firebase_analytics: ^12.4.5
+  shared_preferences: ^2.5.5
+  flutter_local_notifications: ^22.2.0
 
 dev_dependencies:
   flutter_test:
@@ -53,6 +56,21 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/app_icon.png
+  adaptive_icon_background: "#2C3E4A"
+  adaptive_icon_foreground: assets/branding/app_icon.png
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: assets/branding/app_icon.png
+  macos:
+    generate: true
+    image_path: assets/branding/app_icon.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

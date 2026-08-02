@@ -29,15 +29,50 @@ class ChatStore extends ChangeNotifier {
         mockListenerReplies = mockListenerReplies ?? AppFlavorConfig.isPrototype,
         _blockedPeerIds = blockedPeerIds ?? {},
         session = session ?? MemoryChatRepository.defaultSession(),
-        _messages = List<ChatMessage>.from(
-          seedMessages ?? MemoryChatRepository.defaultSeedMessages(),
-        ),
+        _messages = <ChatMessage>[],
         actingAsId = actingAsId ??
             (session ?? MemoryChatRepository.defaultSession()).userId {
     final repo = this.repository;
+    final initial = seedMessages ??
+        (repo is MemoryChatRepository && AppFlavorConfig.isPrototype
+            ? MemoryChatRepository.defaultSeedMessages()
+            : const <ChatMessage>[]);
+    _messages.addAll(initial);
     if (repo is MemoryChatRepository) {
-      repo.seedSession(this.session, messages: _messages);
+      // Prefer messages already written by matchmaking; don't wipe them.
+      repo.getMessages(this.session.id).then((existing) {
+        if (existing.isNotEmpty) {
+          _messages
+            ..clear()
+            ..addAll(existing);
+          notifyListeners();
+        } else if (_messages.isNotEmpty) {
+          repo.seedSession(this.session, messages: _messages);
+        } else {
+          repo.seedSession(this.session, messages: const []);
+        }
+      });
+    } else {
+      _bindRemoteStreams();
     }
+  }
+
+  StreamSubscription<List<ChatMessage>>? _messagesSub;
+  StreamSubscription<ChatSession?>? _sessionSub;
+
+  void _bindRemoteStreams() {
+    _messagesSub = repository.watchMessages(session.id).listen((msgs) {
+      _messages
+        ..clear()
+        ..addAll(msgs);
+      notifyListeners();
+    });
+    _sessionSub = repository.watchSession(session.id).listen((s) {
+      if (s != null) {
+        session = s;
+        notifyListeners();
+      }
+    });
   }
 
   final ChatRepository repository;
@@ -242,6 +277,8 @@ class ChatStore extends ChangeNotifier {
   void dispose() {
     _replyTimer?.cancel();
     _cancelStatusTimers();
+    _messagesSub?.cancel();
+    _sessionSub?.cancel();
     super.dispose();
   }
 }

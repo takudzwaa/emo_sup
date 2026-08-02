@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/feature_flags.dart';
 import '../data/booking_store.dart';
 import '../data/membership_store.dart';
 import '../models/booking.dart';
@@ -18,12 +19,17 @@ class BookingConfirmScreen extends StatefulWidget {
     required this.membershipStore,
     required this.listener,
     required this.slot,
+    this.featureFlags,
   });
 
   final BookingStore store;
   final MembershipStore membershipStore;
   final ListenerProfile listener;
   final TimeSlot slot;
+
+  /// When provided and payments are disabled, the paid checkout path is
+  /// hidden (free/plan/sponsored slots are unaffected).
+  final FeatureFlags? featureFlags;
 
   @override
   State<BookingConfirmScreen> createState() => _BookingConfirmScreenState();
@@ -47,8 +53,12 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
   bool get _planCovers =>
       _isPremiumAccess && widget.membershipStore.hasActivePlan;
 
+  bool get _paymentsOff =>
+      widget.featureFlags != null && !widget.featureFlags!.paymentsEnabled;
+
   Future<void> _onPrimary() async {
     if (_confirming) return;
+    if (_needsPay && _paymentsOff) return;
     setState(() => _confirming = true);
 
     // Sponsored free path (PR 15) — never force payment.
@@ -115,13 +125,19 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
     if (_confirming) {
       return _needsPay ? 'Opening…' : 'Confirming…';
     }
-    if (_needsPay) return 'Continue to payment';
+    if (_needsPay) {
+      return _paymentsOff ? 'Paid sessions unavailable' : 'Continue to payment';
+    }
     if (_isSponsored) return 'Confirm free session';
     return 'Confirm booking';
   }
 
   String? get _accessHint {
     if (_isSponsored) return 'Community free slot · no payment needed';
+    if (_needsPay && _paymentsOff) {
+      return 'Paid sessions are not available yet — '
+          'pick a free or sponsored slot instead.';
+    }
     if (_needsPay) return 'Premium session · \$12';
     if (_planCovers) return 'Included in your plan';
     return null;
@@ -217,7 +233,9 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
                     ],
                     const SizedBox(height: 36),
                     SoftPrimaryButton(
-                      onPressed: _confirming ? null : _onPrimary,
+                      onPressed: _confirming || (_needsPay && _paymentsOff)
+                          ? null
+                          : _onPrimary,
                       label: _primaryLabel,
                     ),
                     const SizedBox(height: 8),

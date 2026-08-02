@@ -1,3 +1,4 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
@@ -7,14 +8,20 @@ import 'auth/auth_controller.dart';
 import 'auth/auth_service.dart';
 import 'config/discreet_settings.dart';
 import 'data/booking_store.dart';
+import 'data/chat_store.dart';
 import 'data/membership_store.dart';
 import 'data/mood_store.dart';
 import 'firebase_bootstrap.dart';
 import 'models/user_profile.dart';
 import 'screens/app_lock_screen.dart';
 import 'screens/auth/auth_flow.dart';
+import 'screens/chat_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/fcm_notification_service.dart';
 import 'theme/app_theme.dart';
+
+/// Root navigator — lets notification taps push routes from outside widgets.
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +32,39 @@ Future<void> main() async {
     profileRepository: services.profiles,
   );
   await authController.tryRestoreSession();
+  final uid = authController.profile?.uid ?? services.auth.currentUid;
+  if (uid != null && services.firebaseReady) {
+    await services.notifications.registerToken(uid);
+  }
+  final notifications = services.notifications;
+  if (services.firebaseReady && notifications is FcmNotificationService) {
+    FirebaseMessaging.onBackgroundMessage(fcmBackgroundMessageHandler);
+    await notifications.configureMessageHandling(
+      onTap: (data) => _openChatFromNotification(services, data),
+    );
+  }
   runApp(EmoSupApp.fromServices(services, authController: authController));
+}
+
+Future<void> _openChatFromNotification(
+  AppServices services,
+  Map<String, Object?> data,
+) async {
+  final sessionId = data['sessionId']?.toString();
+  if (sessionId == null || sessionId.isEmpty) return;
+  final session = await services.chats.getSession(sessionId);
+  if (session == null) return;
+  appNavigatorKey.currentState?.push(
+    MaterialPageRoute(
+      builder: (_) => ChatScreen(
+        chatStore: ChatStore(
+          session: session,
+          repository: services.chats,
+          actingAsId: session.userId,
+        ),
+      ),
+    ),
+  );
 }
 
 class EmoSupApp extends StatelessWidget {
@@ -46,11 +85,15 @@ class EmoSupApp extends StatelessWidget {
     AppServices services, {
     AuthController? authController,
   }) {
+    final uid = authController?.profile?.uid ??
+        services.auth.currentUid ??
+        'user_quiet_river';
     return EmoSupApp(
       services: services,
       discreetSettings: services.discreetSettings,
-      moodStore: MoodStore(repository: services.moods),
+      moodStore: MoodStore(repository: services.moods, userId: uid),
       bookingStore: BookingStore(
+        currentUserId: uid,
         bookingRepository: services.bookings,
         listenerDirectory: services.listeners,
       ),
@@ -76,6 +119,7 @@ class EmoSupApp extends StatelessWidget {
       listenable: Listenable.merge([authController, discreetSettings]),
       builder: (context, _) {
         return MaterialApp(
+          navigatorKey: appNavigatorKey,
           onGenerateTitle: (context) => discreetSettings.displayAppTitle,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
@@ -107,6 +151,7 @@ class EmoSupApp extends StatelessWidget {
       bookingStore: bookingStore,
       membershipStore: membershipStore,
       matchRepository: services?.match,
+      chatRepository: services?.chats,
       featureFlags: services?.featureFlags,
       safetyRepository: services?.safety,
       discreetSettings: discreetSettings,

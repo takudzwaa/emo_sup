@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
+import '../domain/repositories/chat_repository.dart';
 import '../domain/repositories/listener_ops_repository.dart';
+import '../domain/repositories/safety_repository.dart';
 import '../models/active_chat_summary.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
@@ -16,6 +20,8 @@ class ListenerDashboardStore extends ChangeNotifier {
     List<ActiveChatSummary>? activeChats,
     List<ListenerBookingSummary>? upcomingBookings,
     ListenerOpsRepository? repository,
+    this.chatRepository,
+    this.safetyRepository,
   })  : repository = repository ??
             MemoryListenerOpsRepository(
               listenerId: listenerId,
@@ -25,14 +31,54 @@ class ListenerDashboardStore extends ChangeNotifier {
             ),
         availableNow = availableNow,
         _activeChats = List<ActiveChatSummary>.from(
-          activeChats ?? MemoryListenerOpsRepository.defaultActiveChats(),
+          activeChats ??
+              (repository is MemoryListenerOpsRepository || repository == null
+                  ? MemoryListenerOpsRepository.defaultActiveChats()
+                  : const <ActiveChatSummary>[]),
         ),
         _upcomingBookings = List<ListenerBookingSummary>.from(
           upcomingBookings ??
-              MemoryListenerOpsRepository.defaultUpcomingBookings(),
-        );
+              (repository is MemoryListenerOpsRepository || repository == null
+                  ? MemoryListenerOpsRepository.defaultUpcomingBookings()
+                  : const <ListenerBookingSummary>[]),
+        ) {
+    if (this.repository is! MemoryListenerOpsRepository) {
+      _bindRemote();
+    }
+  }
+
+  StreamSubscription<List<ActiveChatSummary>>? _chatsSub;
+  StreamSubscription<bool>? _availSub;
+
+  void _bindRemote() {
+    _chatsSub = repository.watchActiveChats(listenerId).listen((list) {
+      _activeChats
+        ..clear()
+        ..addAll(list);
+      notifyListeners();
+    });
+    _availSub = repository.watchAvailableNow(listenerId).listen((v) {
+      availableNow = v;
+      notifyListeners();
+    });
+    repository.listUpcomingBookings(listenerId).then((list) {
+      _upcomingBookings
+        ..clear()
+        ..addAll(list);
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatsSub?.cancel();
+    _availSub?.cancel();
+    super.dispose();
+  }
 
   final ListenerOpsRepository repository;
+  final ChatRepository? chatRepository;
+  final SafetyRepository? safetyRepository;
   final String listenerId;
   final String listenerDisplayName;
 
@@ -49,7 +95,7 @@ class ListenerDashboardStore extends ChangeNotifier {
 
   int get sessionsToday => _activeChats.length;
 
-  /// Stub earnings: \$8 per active session — demo only, not real payouts.
+  /// Demo-only estimate — hidden in live listener UI when not prototype.
   int get estimatedEarningsDemo => sessionsToday * 8;
 
   void setAvailableNow(bool value) {
@@ -70,15 +116,25 @@ class ListenerDashboardStore extends ChangeNotifier {
   /// Builds a [ChatStore] for the listener to open an existing conversation.
   ChatStore openChatStore(ActiveChatSummary summary) {
     final now = DateTime.now();
+    final session = ChatSession(
+      id: summary.sessionId,
+      userId: summary.userId,
+      listenerId: listenerId,
+      startedAt: now.subtract(const Duration(minutes: 20)),
+      listenerDisplayName: listenerDisplayName,
+      userDisplayName: summary.userAnonymousName,
+    );
+    if (chatRepository != null) {
+      return ChatStore(
+        session: session,
+        seedMessages: const [],
+        mockListenerReplies: false,
+        actingAsId: listenerId,
+        repository: chatRepository,
+      );
+    }
     return ChatStore(
-      session: ChatSession(
-        id: summary.sessionId,
-        userId: summary.userId,
-        listenerId: listenerId,
-        startedAt: now.subtract(const Duration(minutes: 20)),
-        listenerDisplayName: listenerDisplayName,
-        userDisplayName: summary.userAnonymousName,
-      ),
+      session: session,
       seedMessages: [
         ChatMessage(
           id: '${summary.sessionId}_m0',
@@ -104,9 +160,6 @@ class ListenerDashboardStore extends ChangeNotifier {
     required String sessionId,
     String reason = 'listener_escalation',
   }) async {
-    debugPrint(
-      'ESCALATE stub session=$sessionId listener=$listenerId reason=$reason',
-    );
     await repository.escalateChat(
       sessionId: sessionId,
       listenerId: listenerId,

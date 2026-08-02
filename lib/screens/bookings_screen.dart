@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/feature_flags.dart';
 import '../data/booking_store.dart';
 import '../data/membership_store.dart';
 import '../models/booking.dart';
@@ -17,6 +18,7 @@ class BookingsScreen extends StatefulWidget {
     super.key,
     this.bookingStore,
     this.membershipStore,
+    this.featureFlags,
     this.initialTabIndex = 0,
   });
 
@@ -25,6 +27,9 @@ class BookingsScreen extends StatefulWidget {
 
   /// Optional inject for tests; creates [MembershipStore] if null.
   final MembershipStore? membershipStore;
+
+  /// Kill switches (payments off hides the paid checkout path).
+  final FeatureFlags? featureFlags;
 
   /// 0 = Find a listener, 1 = My upcoming.
   final int initialTabIndex;
@@ -81,6 +86,7 @@ class _BookingsScreenState extends State<BookingsScreen>
         builder: (_) => SlotPickerScreen(
           store: _store,
           membershipStore: _membershipStore,
+          featureFlags: widget.featureFlags,
           listener: listener,
         ),
       ),
@@ -109,6 +115,7 @@ class _BookingsScreenState extends State<BookingsScreen>
         builder: (_) => SlotPickerScreen(
           store: _store,
           membershipStore: _membershipStore,
+          featureFlags: widget.featureFlags,
           listener: listener,
         ),
       ),

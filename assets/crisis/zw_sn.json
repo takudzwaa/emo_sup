@@ -32,6 +32,13 @@
       "icon": "emergency"
     },
     {
+      "id": "zw_mental_health_directory",
+      "title": "Tsvaga rubatsiro rwepfungwa kana rwekudzivirira kuzviuraya",
+      "subtitle": "Rondedzero yenhamba dzinobatsira muZimbabwe kubva pa-findahelpline.com. Nhamba dzinogona kuchinja — tarisa paunofona.",
+      "url": "https://findahelpline.com/countries/zw",
+      "icon": "support"
+    },
+    {
       "id": "trusted_person",
       "title": "Mumwe waunovimba naye pedyo",
       "subtitle": "Shamwari, mhuri, muvakidzani, kana mubatsiri wemhara",

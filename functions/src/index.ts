@@ -1,19 +1,35 @@
 /**
- * Cloud Functions entry (PR 10+).
+ * Cloud Functions entry — Pilot MVP callables + triggers.
  *
- * Deploy when a Firebase project is linked:
- *   cd functions && npm i && npm run deploy
- *
- * Client prototype uses MemoryMatchRepository until callable is wired.
+ * Deploy: cd functions && npm i && npm run build && firebase deploy --only functions
  */
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2';
 
 admin.initializeApp();
-setGlobalOptions({ region: 'europe-west1' }); // pilot default EU
+setGlobalOptions({ region: 'europe-west1' });
 
 const db = admin.firestore();
+
+/**
+ * App Check enforcement — set per environment via functions/.env.<project-id>
+ * (staging soaks with false, prod ships true). Resolved at deploy time.
+ */
+const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === 'true';
+const callOpts = { enforceAppCheck: ENFORCE_APP_CHECK };
+
+/**
+ * Payments kill switch — fail closed. Real gateway integration is deferred
+ * (Phase B); until `config/payments { enabled: true }` is set by an operator,
+ * paid checkout and client-asserted payment confirmation are refused.
+ */
+async function paymentsEnabled(): Promise<boolean> {
+  const snap = await db.doc('config/payments').get();
+  return snap.data()?.enabled === true;
+}
 
 /** ISO-ish week key Africa/Harare (UTC+2). */
 function weekIdHarare(now = new Date()): string {
@@ -27,13 +43,20 @@ function weekIdHarare(now = new Date()): string {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
+async function isBlockedPair(a: string, b: string): Promise<boolean> {
+  const id1 = `${a}_${b}`;
+  const id2 = `${b}_${a}`;
+  const [x, y] = await Promise.all([
+    db.doc(`blocks/${id1}`).get(),
+    db.doc(`blocks/${id2}`).get(),
+  ]);
+  return x.exists || y.exists;
+}
+
 /**
  * requestMatch — server-authoritative session create + free async quota.
- *
- * Input: { mode: 'now'|'async', preferredLanguages?: string[] }
- * Output: { sessionId, listenerId, listenerDisplayName, mode, quotaCharged? }
  */
-export const requestMatch = onCall(async (request) => {
+export const requestMatch = onCall(callOpts, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
@@ -101,6 +124,9 @@ export const requestMatch = onCall(async (request) => {
     pick = pick ?? docs[0];
 
     const sessionRef = db.collection('chats').doc();
+    const opener =
+      "Hi — I'm here to listen. This is a private space; share only " +
+      'what feels comfortable. Take your time.';
     const session = {
       id: sessionRef.id,
       userId: uid,
@@ -111,15 +137,23 @@ export const requestMatch = onCall(async (request) => {
       endedAt: null,
       status: 'active',
       mode,
-      lastMessagePreview: '',
-      lastMessageAt: null,
-      userUnreadCount: 0,
+      lastMessagePreview: opener.slice(0, 120),
+      lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+      userUnreadCount: 1,
       listenerUnreadCount: 0,
       quotaCharged,
       quotaWeekId: quotaWeekId ?? null,
       quotaRefunded: false,
     };
     tx.set(sessionRef, session);
+    const msgRef = sessionRef.collection('messages').doc();
+    tx.set(msgRef, {
+      id: msgRef.id,
+      senderId: pick.id,
+      text: opener,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      status: 'delivered',
+    });
 
     return {
       sessionId: sessionRef.id,
@@ -134,9 +168,8 @@ export const requestMatch = onCall(async (request) => {
 
 /**
  * createBookingCheckout — dual entry (PR 13).
- * settlement: plan | sponsored | free | paid
  */
-export const createBookingCheckout = onCall(async (request) => {
+export const createBookingCheckout = onCall(callOpts, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
@@ -151,8 +184,19 @@ export const createBookingCheckout = onCall(async (request) => {
   if (!listenerId || !slotStart) {
     throw new HttpsError('invalid-argument', 'listenerId and slotStart required.');
   }
+  if (!['free', 'plan', 'sponsored', 'paid'].includes(settlement)) {
+    throw new HttpsError('invalid-argument', 'Unknown settlement type.');
+  }
 
   const needsPay = settlement === 'paid';
+  if (needsPay) {
+    if (!(await paymentsEnabled())) {
+      throw new HttpsError('failed-precondition', 'PAYMENTS_DISABLED');
+    }
+    if (!Number.isInteger(priceCents) || priceCents <= 0) {
+      throw new HttpsError('invalid-argument', 'priceCents must be a positive integer.');
+    }
+  }
   const bookingRef = db.collection('bookings').doc();
   const holdMinutes = 12;
   const booking = {
@@ -205,8 +249,84 @@ export const createBookingCheckout = onCall(async (request) => {
   };
 });
 
+/**
+ * Confirm booking payment.
+ *
+ * IMPORTANT: still trusts the caller's claim of success — acceptable ONLY
+ * while `config/payments.enabled` is false (the gate below refuses all
+ * calls). Phase B must replace this with gateway webhook verification
+ * BEFORE payments are enabled.
+ */
+export const confirmBookingPayment = onCall(callOpts, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  if (!(await paymentsEnabled())) {
+    throw new HttpsError('failed-precondition', 'PAYMENTS_DISABLED');
+  }
+  const uid = request.auth.uid;
+  const bookingId = String(request.data?.bookingId ?? '');
+  const paymentId = String(request.data?.paymentId ?? '');
+  const method = String(request.data?.method ?? 'card');
+  if (!bookingId || !paymentId) {
+    throw new HttpsError('invalid-argument', 'bookingId and paymentId required.');
+  }
+  const bookingRef = db.doc(`bookings/${bookingId}`);
+  const snap = await bookingRef.get();
+  if (!snap.exists) {
+    throw new HttpsError('not-found', 'Booking not found.');
+  }
+  if (snap.data()?.userId !== uid) {
+    throw new HttpsError('permission-denied', 'Not your booking.');
+  }
+  const paySnap = await db.doc(`payments/${paymentId}`).get();
+  if (!paySnap.exists || paySnap.data()?.bookingId !== bookingId) {
+    throw new HttpsError('invalid-argument', 'Payment does not match booking.');
+  }
+  await bookingRef.set(
+    {
+      status: 'confirmed',
+      paymentStatus: 'paid',
+      paymentMethod: method,
+      holdExpiresAt: null,
+      confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+  await db.doc(`payments/${paymentId}`).set(
+    {
+      status: 'succeeded',
+      method,
+      settledAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+  return { bookingId, status: 'confirmed' };
+});
+
+export const cancelBooking = onCall(callOpts, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  const uid = request.auth.uid;
+  const bookingId = String(request.data?.bookingId ?? '');
+  if (!bookingId) {
+    throw new HttpsError('invalid-argument', 'bookingId required.');
+  }
+  const ref = db.doc(`bookings/${bookingId}`);
+  const snap = await ref.get();
+  if (!snap.exists) return { cancelled: false };
+  const data = snap.data()!;
+  const isListener = request.auth.token.role === 'listener';
+  if (data.userId !== uid && !(isListener && data.listenerId === uid)) {
+    throw new HttpsError('permission-denied', 'Not allowed.');
+  }
+  await ref.set({ status: 'cancelled' }, { merge: true });
+  return { cancelled: true };
+});
+
 /** Listener availability toggle (CF-only write path). */
-export const setListenerAvailability = onCall(async (request) => {
+export const setListenerAvailability = onCall(callOpts, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
@@ -231,7 +351,7 @@ export const setListenerAvailability = onCall(async (request) => {
 });
 
 /** escalateChat — listener flags risk; writes safety_inbox (PR 16). */
-export const escalateChat = onCall(async (request) => {
+export const escalateChat = onCall(callOpts, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
@@ -242,6 +362,13 @@ export const escalateChat = onCall(async (request) => {
   const reason = String(request.data?.reason ?? 'listener_escalation');
   if (!sessionId) {
     throw new HttpsError('invalid-argument', 'sessionId required.');
+  }
+  const chatSnap = await db.doc(`chats/${sessionId}`).get();
+  if (!chatSnap.exists) {
+    throw new HttpsError('not-found', 'Session not found.');
+  }
+  if (chatSnap.data()?.listenerId !== request.auth.uid) {
+    throw new HttpsError('permission-denied', 'Not the listener on this session.');
   }
   const ref = db.collection('safety_inbox').doc();
   await ref.set({
@@ -265,9 +392,8 @@ export const escalateChat = onCall(async (request) => {
 
 /**
  * deleteMyData — scrub requester texts, soft-unlink, retain reports (PR 17).
- * Auth user delete is scheduled ≤24h by ops/CF follow-up.
  */
-export const deleteMyData = onCall(async (request) => {
+export const deleteMyData = onCall(callOpts, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
@@ -283,11 +409,13 @@ export const deleteMyData = onCall(async (request) => {
     .where('userId', '==', uid)
     .get();
   let messagesScrubbed = 0;
+  let sessionsUnlinked = 0;
   for (const chat of chats.docs) {
     await chat.ref.set(
       { userDeleted: true, status: 'ended', endedAt: now },
       { merge: true },
     );
+    sessionsUnlinked++;
     const msgs = await chat.ref.collection('messages').where('senderId', '==', uid).get();
     for (const m of msgs.docs) {
       await m.ref.update({ text: '[message removed]' });
@@ -295,13 +423,17 @@ export const deleteMyData = onCall(async (request) => {
     }
   }
 
+  let tokensCleared = 0;
   const tokens = await db.collection(`users/${uid}/fcm_tokens`).get();
   for (const t of tokens.docs) {
     await t.ref.delete();
+    tokensCleared++;
   }
+  let quotaDocsRemoved = 0;
   const quotas = await db.collection(`users/${uid}/match_quota`).get();
   for (const q of quotas.docs) {
     await q.ref.delete();
+    quotaDocsRemoved++;
   }
 
   await db.collection('safety_inbox').add({
@@ -312,21 +444,36 @@ export const deleteMyData = onCall(async (request) => {
     createdAt: now,
   });
 
-  return { messagesScrubbed, authDeleteWithinHours: 24 };
+  // Delete the Auth account last so a mid-run failure leaves a signed-in
+  // user who can simply retry. The client signs out on success.
+  await admin.auth().deleteUser(uid);
+
+  return {
+    messagesScrubbed,
+    sessionsUnlinked,
+    tokensCleared,
+    quotaDocsRemoved,
+    authDeleted: true,
+  };
 });
 
 /**
  * activateMembership — after payment success (PR 22).
- * Client never writes memberships/{uid}.
+ *
+ * IMPORTANT: trusts the client-supplied paymentId — acceptable ONLY while
+ * `config/payments.enabled` is false (gate below). Phase B must verify the
+ * payment against the gateway BEFORE payments are enabled.
  */
-export const activateMembership = onCall(async (request) => {
+export const activateMembership = onCall(callOpts, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  if (!(await paymentsEnabled())) {
+    throw new HttpsError('failed-precondition', 'PAYMENTS_DISABLED');
   }
   const uid = request.auth.uid;
   const planId = String(request.data?.planId ?? 'plan_monthly_29');
   const paymentId = String(request.data?.paymentId ?? '');
-  // Production: verify paymentId against payments ledger / gateway webhook.
   if (!paymentId) {
     throw new HttpsError('invalid-argument', 'paymentId required.');
   }
@@ -343,4 +490,61 @@ export const activateMembership = onCall(async (request) => {
     { merge: true },
   );
   return { planId, renewsAt: renewsAt.toISOString() };
+});
+
+/**
+ * onMessageCreate — preview/unread + reject if blocked (PR 11).
+ */
+export const onMessageCreate = onDocumentCreated(
+  'chats/{sessionId}/messages/{messageId}',
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const sessionId = event.params.sessionId;
+    const msg = snap.data();
+    const senderId = msg.senderId as string;
+    const text = (msg.text as string) ?? '';
+    const chatRef = db.doc(`chats/${sessionId}`);
+    const chatSnap = await chatRef.get();
+    if (!chatSnap.exists) return;
+    const chat = chatSnap.data()!;
+    const userId = chat.userId as string;
+    const listenerId = chat.listenerId as string;
+
+    if (await isBlockedPair(userId, listenerId)) {
+      await snap.ref.delete();
+      return;
+    }
+
+    const fromUser = senderId === userId;
+    await chatRef.set(
+      {
+        lastMessagePreview: text.slice(0, 120),
+        lastMessageAt: msg.timestamp ?? admin.firestore.FieldValue.serverTimestamp(),
+        lastMessageSenderId: senderId,
+        userUnreadCount: fromUser
+          ? (chat.userUnreadCount as number) ?? 0
+          : ((chat.userUnreadCount as number) ?? 0) + 1,
+        listenerUnreadCount: fromUser
+          ? ((chat.listenerUnreadCount as number) ?? 0) + 1
+          : (chat.listenerUnreadCount as number) ?? 0,
+      },
+      { merge: true },
+    );
+  },
+);
+
+/** Expire unpaid booking holds (PR 13). */
+export const expireBookingHolds = onSchedule('every 5 minutes', async () => {
+  const now = admin.firestore.Timestamp.now();
+  const snap = await db
+    .collection('bookings')
+    .where('status', '==', 'pending_payment')
+    .where('holdExpiresAt', '<=', now)
+    .get();
+  const batch = db.batch();
+  for (const doc of snap.docs) {
+    batch.set(doc.ref, { status: 'expired' }, { merge: true });
+  }
+  if (!snap.empty) await batch.commit();
 });

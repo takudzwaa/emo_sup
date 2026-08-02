@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/app_flavor.dart';
 import '../config/discreet_settings.dart';
 import '../config/feature_flags.dart';
 import '../data/booking_store.dart';
@@ -7,9 +8,9 @@ import '../data/chat_store.dart';
 import '../data/membership_store.dart';
 import '../data/mood_store.dart';
 import '../data/repositories/memory_match_repository.dart';
+import '../domain/repositories/chat_repository.dart';
 import '../domain/repositories/match_repository.dart';
 import '../domain/repositories/safety_repository.dart';
-import '../models/chat_message.dart';
 import '../models/mood_entry.dart';
 import '../services/analytics_service.dart';
 import '../utils/date_format.dart';
@@ -30,6 +31,7 @@ class HomeScreen extends StatefulWidget {
     required this.bookingStore,
     required this.membershipStore,
     this.matchRepository,
+    this.chatRepository,
     this.featureFlags,
     this.safetyRepository,
     this.discreetSettings,
@@ -44,6 +46,9 @@ class HomeScreen extends StatefulWidget {
 
   /// Server-authoritative matchmaking (PR 10). Defaults to memory match.
   final MatchRepository? matchRepository;
+
+  /// Optional chat persistence (Firestore on staging/prod).
+  final ChatRepository? chatRepository;
 
   final FeatureFlags? featureFlags;
   final SafetyRepository? safetyRepository;
@@ -146,23 +151,16 @@ class _HomeScreenState extends State<HomeScreen> {
       switch (result) {
         case MatchSuccess(:final session):
           await widget.analytics?.logEvent('match_connected');
+          if (!mounted) return;
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) => ChatScreen(
                 chatStore: ChatStore(
                   session: session,
-                  seedMessages: [
-                    ChatMessage(
-                      id: '${session.id}_open',
-                      senderId: session.listenerId,
-                      text:
-                          "Hi — I'm here to listen. This is a private space; "
-                          'share only what feels comfortable.',
-                      timestamp: DateTime.now(),
-                      status: MessageStatus.delivered,
-                    ),
-                  ],
-                  mockListenerReplies: true,
+                  seedMessages: const [],
+                  mockListenerReplies: AppFlavorConfig.isPrototype,
+                  repository: widget.chatRepository,
+                  actingAsId: widget.userId,
                 ),
               ),
             ),
@@ -258,6 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => BookingsScreen(
           bookingStore: widget.bookingStore,
           membershipStore: widget.membershipStore,
+          featureFlags: widget.featureFlags,
         ),
       ),
     );
@@ -582,7 +581,7 @@ class _MoodHistoryStrip extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: entries.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
               final entry = entries[index];
               return Container(

@@ -491,18 +491,21 @@ class _CrisisSectionBody extends StatelessWidget {
 
   void _openResource(BuildContext context, CrisisResource resource) {
     final dial = resource.tel;
+    final link = resource.url;
+    final lines = <String>[resource.subtitle];
+    if (dial != null) {
+      lines.add('Call $dial from your phone dialer if you need this number.');
+    }
+    if (link != null) {
+      lines.add('Visit: $link');
+    }
+    lines.add('This app is not an emergency service'
+        '${dial != null ? ' and cannot place the call for you' : ''}.');
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(resource.title),
-        content: Text(
-          dial != null
-              ? 'Call $dial from your phone dialer if you need this number.\n\n'
-                  '${resource.subtitle}\n\n'
-                  'This app is not an emergency service and cannot place the call for you.'
-              : '${resource.subtitle}\n\n'
-                  'This app is not an emergency service.',
-        ),
+        content: SelectableText(lines.join('\n\n')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),

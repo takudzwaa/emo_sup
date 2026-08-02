@@ -32,6 +32,13 @@
       "icon": "emergency"
     },
     {
+      "id": "zw_mental_health_directory",
+      "title": "Find a mental health or suicide-prevention helpline",
+      "subtitle": "A maintained directory of Zimbabwe crisis and mental-health helplines. Confirm the number before you call — listings can change.",
+      "url": "https://findahelpline.com/countries/zw",
+      "icon": "support"
+    },
+    {
       "id": "trusted_person",
       "title": "Someone you trust nearby",
       "subtitle": "A friend, family member, neighbour, or community helper can sit with you",

@@ -6,14 +6,11 @@ import 'package:flutter/foundation.dart';
 /// remain reachable even when match/bookings/payments are off.
 class FeatureFlags extends ChangeNotifier {
   FeatureFlags({
-    bool matchEnabled = true,
-    bool bookingsEnabled = true,
-    bool paymentsEnabled = true,
-    bool listenLiveEnabled = true,
-  })  : _matchEnabled = matchEnabled,
-        _bookingsEnabled = bookingsEnabled,
-        _paymentsEnabled = paymentsEnabled,
-        _listenLiveEnabled = listenLiveEnabled;
+    this._matchEnabled = true,
+    this._bookingsEnabled = true,
+    this._paymentsEnabled = true,
+    this._listenLiveEnabled = true,
+  });
 
   bool _matchEnabled;
   bool _bookingsEnabled;

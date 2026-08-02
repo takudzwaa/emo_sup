@@ -10,10 +10,9 @@ import 'memory_user_profile_repository.dart';
 /// keeps report rows for ops.
 class MemorySafetyRepository implements SafetyRepository {
   MemorySafetyRepository({
-    MemoryChatRepository? chats,
-    MemoryUserProfileRepository? profiles,
-  })  : _chats = chats,
-        _profiles = profiles;
+    this._chats,
+    this._profiles,
+  });
 
   final MemoryChatRepository? _chats;
   final MemoryUserProfileRepository? _profiles;
