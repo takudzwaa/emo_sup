@@ -61,6 +61,28 @@ describe('Users + field ACL (PR 7)', () => {
         createdAt: new Date().toISOString(),
         preferredLanguages: ['English', 'Shona'],
         locale: 'en',
+        ageConfirmedAt: new Date(),
+      }),
+    );
+  });
+
+  it('denies profile create without an 18+ self-attestation timestamp', async () => {
+    const db = authedDb('user_noage');
+    await assertFails(
+      db.collection('users').doc('user_noage').set({
+        uid: 'user_noage',
+        anonymousName: 'No Age',
+        authMethod: 'phone',
+        createdAt: new Date().toISOString(),
+      }),
+    );
+    await assertFails(
+      db.collection('users').doc('user_noage').set({
+        uid: 'user_noage',
+        anonymousName: 'No Age',
+        authMethod: 'phone',
+        createdAt: new Date().toISOString(),
+        ageConfirmedAt: 'not-a-timestamp',
       }),
     );
   });

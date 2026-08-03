@@ -66,12 +66,15 @@ android/**/*.keystore
 # Gradle build output (not source)
 /android/build/
 
-# Per-flavor Firebase client config: release process copies the *-prod /
-# *-Prod variant over the default before a store build (see README). Keep
-# these out of git so that manual-copy step can't silently drift or leak
-# which project a given checkout is pointed at.
+# Per-flavor Firebase client config. Android: real Gradle product flavors
+# (see android/app/build.gradle.kts) read src/<flavor>/google-services.json
+# directly, so keep every copy out of git. iOS: still a copy-before-build
+# step (tools/build_release.sh) — same reasoning.
 android/app/google-services.json
 android/app/google-services-prod.json
+android/app/src/prototype/google-services.json
+android/app/src/staging/google-services.json
+android/app/src/prod/google-services.json
 ios/Runner/GoogleService-Info.plist
 ios/Runner/GoogleService-Info-Prod.plist
 

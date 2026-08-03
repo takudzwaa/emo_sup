@@ -30,6 +30,7 @@ class AuthController extends ChangeNotifier {
   String? _draftName;
   bool _hasRegeneratedName = false;
   bool _consentAccepted = false;
+  bool _ageConfirmed = false;
   bool _restoring = false;
 
   UserProfile? get profile => _profile;
@@ -40,6 +41,7 @@ class AuthController extends ChangeNotifier {
   bool get canRegenerateName => !_hasRegeneratedName;
   bool get hasRegeneratedName => _hasRegeneratedName;
   bool get consentAccepted => _consentAccepted;
+  bool get ageConfirmed => _ageConfirmed;
   bool get isRestoring => _restoring;
 
   /// If Auth has a uid and a stored profile exists, land on Home (session restore).
@@ -53,6 +55,7 @@ class AuthController extends ChangeNotifier {
       if (existing != null) {
         _profile = existing;
         _consentAccepted = true;
+        _ageConfirmed = true;
       }
     } finally {
       _restoring = false;
@@ -75,6 +78,7 @@ class AuthController extends ChangeNotifier {
       _profile = existing;
       _pending = null;
       _consentAccepted = true;
+      _ageConfirmed = true;
       notifyListeners();
       return;
     }
@@ -101,6 +105,7 @@ class AuthController extends ChangeNotifier {
       _profile = existing;
       _pending = null;
       _consentAccepted = true;
+      _ageConfirmed = true;
       notifyListeners();
       return;
     }
@@ -127,11 +132,19 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAgeConfirmed(bool value) {
+    _ageConfirmed = value;
+    notifyListeners();
+  }
+
   /// Final step: write profile and grant Home access.
   UserProfile completeOnboarding() {
     final pending = _pending;
     if (pending == null) {
       throw AuthException('Sign in before finishing setup.');
+    }
+    if (!_ageConfirmed) {
+      throw AuthException('Please confirm you are 18 or older to continue.');
     }
     if (!_consentAccepted) {
       throw AuthException('Please confirm the consent step to continue.');
@@ -142,6 +155,7 @@ class AuthController extends ChangeNotifier {
       anonymousName: draftAnonymousName,
       authMethod: pending.authMethod,
       createdAt: DateTime.now(),
+      ageConfirmedAt: DateTime.now(),
     );
     // Persist (memory or Firestore adapter).
     profileRepository.upsertProfile(profile);
@@ -158,6 +172,7 @@ class AuthController extends ChangeNotifier {
     _draftName = null;
     _hasRegeneratedName = false;
     _consentAccepted = false;
+    _ageConfirmed = false;
     notifyListeners();
   }
 
@@ -166,6 +181,7 @@ class AuthController extends ChangeNotifier {
     _profile = profile;
     _pending = null;
     _consentAccepted = true;
+    _ageConfirmed = true;
     profileRepository.upsertProfile(profile);
     notifyListeners();
   }

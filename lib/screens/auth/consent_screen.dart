@@ -24,6 +24,7 @@ class ConsentScreen extends StatefulWidget {
 
 class _ConsentScreenState extends State<ConsentScreen> {
   bool _checked = false;
+  bool _ageChecked = false;
   String? _error;
   late final TapGestureRecognizer _privacyTap;
 
@@ -48,11 +49,16 @@ class _ConsentScreenState extends State<ConsentScreen> {
   }
 
   void _continue() {
+    if (!_ageChecked) {
+      setState(() => _error = 'Please confirm you are 18 or older to continue.');
+      return;
+    }
     if (!_checked) {
       setState(() => _error = 'Please confirm to continue.');
       return;
     }
     setState(() => _error = null);
+    widget.authController.setAgeConfirmed(true);
     widget.authController.setConsentAccepted(true);
     try {
       widget.authController.completeOnboarding();
@@ -110,6 +116,26 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   ),
                 ),
                 const Spacer(),
+                SoftCard(
+                  padding: EdgeInsets.zero,
+                  child: CheckboxListTile(
+                    value: _ageChecked,
+                    onChanged: (v) {
+                      setState(() {
+                        _ageChecked = v ?? false;
+                        _error = null;
+                      });
+                      widget.authController.setAgeConfirmed(_ageChecked);
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: const EdgeInsets.fromLTRB(8, 4, 12, 4),
+                    title: Text(
+                      'I confirm I am 18 years of age or older.',
+                      style: textTheme.bodyMedium,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 SoftCard(
                   padding: EdgeInsets.zero,
                   child: CheckboxListTile(

@@ -26,6 +26,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Required by flutter_local_notifications.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -34,6 +36,29 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    // Real per-environment flavors (was previously a manual
+    // `cp google-services-prod.json google-services.json` step before every
+    // prod build — easy to forget, and nothing caught it if you did). Same
+    // applicationId across flavors (all three Firebase Android apps are
+    // registered under "com.emosup.emo_sup", no per-flavor suffix) — only
+    // the bundled google-services.json differs, picked up automatically by
+    // the google-services Gradle plugin from src/<flavor>/google-services.json.
+    flavorDimensions += "env"
+    productFlavors {
+        create("prototype") {
+            dimension = "env"
+            // In-memory repos; Firebase is never initialized for this
+            // flavor in Dart, but the google-services plugin still needs a
+            // valid file present to build the variant — reuses staging's.
+        }
+        create("staging") {
+            dimension = "env"
+        }
+        create("prod") {
+            dimension = "env"
+        }
     }
 
     signingConfigs {
@@ -70,6 +95,10 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {

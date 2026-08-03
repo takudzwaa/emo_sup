@@ -45,6 +45,11 @@ echo "==> Seed config + demo listeners (Admin SDK script)"
   node scripts/seed_pilot.js
 ) || echo "Run: cd functions && node scripts/seed_pilot.js after linking a service account"
 
+echo "==> flutterfire wrote android/app/src/staging/google-services.json"
+echo "    (also copy it to android/app/src/prototype/ so that flavor still builds)"
+cp android/app/src/staging/google-services.json android/app/src/prototype/google-services.json 2>/dev/null || true
+
 echo "==> Done. Run:"
-echo "    flutter run --dart-define=FLAVOR=staging"
+echo "    flutter run --flavor staging --dart-define=FLAVOR=staging   (Android)"
+echo "    flutter run --dart-define=FLAVOR=staging                     (iOS)"
 echo "    Phone Auth: add Android SHA-1 / iOS APNs, or use email until then."

@@ -58,7 +58,9 @@ void main() {
     expect(find.text('Before you continue'), findsOneWidget);
     expect(find.textContaining('not therapy'), findsWidgets);
 
-    await tester.tap(find.byType(CheckboxListTile));
+    await tester.tap(find.byType(CheckboxListTile).at(0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(CheckboxListTile).at(1));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Enter the app'));
     await tester.pumpAndSettle();

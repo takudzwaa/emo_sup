@@ -6,11 +6,19 @@ trained human listeners for private 1:1 text chat and scheduled sessions.
 
 ## Flavors
 
-| Flavor | Command | Data |
-|--------|---------|------|
-| **prototype** (default) | `flutter run` | In-memory repos + demo seeds |
-| **staging** | `flutter run --dart-define=FLAVOR=staging` | Firebase `emo-sup-staging` |
-| **prod** | `flutter run --dart-define=FLAVOR=prod` | Firebase `emo-sup-prod` (fails closed if unconfigured) |
+Android has real Gradle product flavors (`android/app/build.gradle.kts`), each
+bundling its own `google-services.json` from `android/app/src/<flavor>/` — no
+manual file-copying, so a prod build can't silently end up pointed at
+staging. iOS doesn't have per-flavor Xcode targets yet (still one scheme), so
+**omit `--flavor` on iOS** — `--dart-define=FLAVOR=...` alone selects the Dart
+side, and `GoogleService-Info.plist` is swapped at release time by
+`tools/build_release.sh` (see the production runbook below).
+
+| Flavor | Android command | iOS command | Data |
+|--------|------------------|-------------|------|
+| **prototype** (default) | `flutter run --flavor prototype` | `flutter run` | In-memory repos + demo seeds |
+| **staging** | `flutter run --flavor staging --dart-define=FLAVOR=staging` | `flutter run --dart-define=FLAVOR=staging` | Firebase `emo-sup-staging` |
+| **prod** | `flutter run --flavor prod --dart-define=FLAVOR=prod` | `flutter run --dart-define=FLAVOR=prod` (after running the release script to swap the plist) | Firebase `emo-sup-prod` (fails closed if unconfigured) |
 
 ## One-time Firebase setup (staging)
 
@@ -55,8 +63,9 @@ verification ships.
 **Already done for `emo-sup-prod`:** project + Android/iOS apps created, Dart
 `prod*` options filled, Firestore rules/indexes deployed, `config/free_match` +
 `config/payments` (enabled: false) seeded. Native prod configs live at
-`android/app/google-services-prod.json` and
-`ios/Runner/GoogleService-Info-Prod.plist` (staging remains the day-to-day default).
+`android/app/src/prod/google-services.json` (picked up automatically by the
+`prod` Gradle flavor) and `ios/Runner/GoogleService-Info-Prod.plist` (staging
+remains the day-to-day default for both platforms).
 
 **You still need to finish in Console:**
 
@@ -73,18 +82,24 @@ verification ships.
    (Play Integrity with Android SHA-256 + App Attest). Confirm
    `functions/.env.emo-sup-prod` has `ENFORCE_APP_CHECK=true`.
 
-3. **For a store release build**, point native configs at prod (or add product
-   flavors), then sign Android:
+3. **For a store release build**, generate the Android upload keystore once:
 
    ```bash
-   cp android/app/google-services-prod.json android/app/google-services.json
-   cp ios/Runner/GoogleService-Info-Prod.plist ios/Runner/GoogleService-Info.plist
    keytool -genkey -v -keystore android/upload-keystore.jks \
      -keyalg RSA -keysize 2048 -validity 10000 -alias upload
    cp android/key.properties.example android/key.properties
    # Fill passwords / alias / storeFile
-   flutter build appbundle --dart-define=FLAVOR=prod
-   flutter build ipa --dart-define=FLAVOR=prod
+   ```
+
+   Then build via the release script, which verifies the right Firebase
+   project is wired up (Android via its Gradle flavor, iOS via a
+   copy-and-verify of `GoogleService-Info-Prod.plist`) *before* handing off to
+   `flutter build`, instead of trusting a manual copy step:
+
+   ```bash
+   chmod +x tools/build_release.sh
+   ./tools/build_release.sh prod appbundle
+   ./tools/build_release.sh prod ipa
    ```
 
 4. **Listener accounts:** grant `role: listener` via
@@ -97,11 +112,13 @@ To re-run provisioning from scratch: `./tools/firebase_setup_prod.sh`.
 
 ```bash
 # Staging / local: dart-define still works for demos without a claim
+# (add --flavor staging before -t on Android; omit --flavor on iOS)
 flutter run -t lib/main_listener.dart \
   --dart-define=FLAVOR=staging \
   --dart-define=LISTENER_CLAIM=true
 
 # Prod: sign in as a user that already has role=listener
+# (add --flavor prod before -t on Android; omit --flavor on iOS)
 flutter run -t lib/main_listener.dart --dart-define=FLAVOR=prod
 ```
 

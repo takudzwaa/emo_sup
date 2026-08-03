@@ -29,6 +29,7 @@ users/{uid}                                    // end-user app profile
   anonymousName: string                        // e.g. "Quiet River"
   authMethod: string                           // "email" | "phone"
   createdAt: timestamp
+  ageConfirmedAt: timestamp                    // 18+ self-attestation; required at create (rules-enforced)
   // optional prototype fields
   lastMoodValue: number | null                 // 1–5, denormalized convenience
   lastMoodAt: timestamp | null

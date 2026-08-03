@@ -17,6 +17,7 @@ class UserProfile {
     required this.anonymousName,
     required this.authMethod,
     required this.createdAt,
+    this.ageConfirmedAt,
   });
 
   final String uid;
@@ -27,17 +28,24 @@ class UserProfile {
   final AuthMethod authMethod;
   final DateTime createdAt;
 
+  /// When the user self-attested they're 18+. Required by firestore.rules on
+  /// profile create (server-enforced, not just a client-side checkbox) — null
+  /// only for profiles created before this field existed.
+  final DateTime? ageConfirmedAt;
+
   UserProfile copyWith({
     String? uid,
     String? anonymousName,
     AuthMethod? authMethod,
     DateTime? createdAt,
+    DateTime? ageConfirmedAt,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
       anonymousName: anonymousName ?? this.anonymousName,
       authMethod: authMethod ?? this.authMethod,
       createdAt: createdAt ?? this.createdAt,
+      ageConfirmedAt: ageConfirmedAt ?? this.ageConfirmedAt,
     );
   }
 
@@ -47,12 +55,15 @@ class UserProfile {
       'anonymousName': anonymousName,
       'authMethod': authMethod.name,
       'createdAt': createdAt.toIso8601String(),
+      if (ageConfirmedAt != null)
+        'ageConfirmedAt': ageConfirmedAt!.toIso8601String(),
       // Future Firestore: prefer Timestamp.fromDate(createdAt)
       // Do NOT write email/phone here — those stay in Firebase Auth only.
     };
   }
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
+    final rawAgeConfirmedAt = map['ageConfirmedAt'] as String?;
     return UserProfile(
       uid: map['uid'] as String,
       anonymousName: map['anonymousName'] as String,
@@ -61,6 +72,8 @@ class UserProfile {
         orElse: () => AuthMethod.email,
       ),
       createdAt: DateTime.parse(map['createdAt'] as String),
+      ageConfirmedAt:
+          rawAgeConfirmedAt != null ? DateTime.parse(rawAgeConfirmedAt) : null,
     );
   }
 
@@ -72,10 +85,11 @@ class UserProfile {
             uid == other.uid &&
             anonymousName == other.anonymousName &&
             authMethod == other.authMethod &&
-            createdAt == other.createdAt;
+            createdAt == other.createdAt &&
+            ageConfirmedAt == other.ageConfirmedAt;
   }
 
   @override
   int get hashCode =>
-      Object.hash(uid, anonymousName, authMethod, createdAt);
+      Object.hash(uid, anonymousName, authMethod, createdAt, ageConfirmedAt);
 }

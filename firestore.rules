@@ -31,7 +31,7 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
         'uid', 'anonymousName', 'authMethod', 'createdAt',
         'preferredLanguages', 'locale', 'discreetMode', 'region',
-        'lastMoodValue', 'lastMoodAt'
+        'lastMoodValue', 'lastMoodAt', 'ageConfirmedAt'
       ]);
     }
 
@@ -56,7 +56,10 @@ service cloud.firestore {
         && !('email' in request.resource.data)
         && !('phone' in request.resource.data)
         && !('legalName' in request.resource.data)
-        && !('deletionRequestedAt' in request.resource.data);
+        && !('deletionRequestedAt' in request.resource.data)
+        // 18+ self-attestation is mandatory, not just a client-side
+        // checkbox — a raw SDK call without it is rejected here too.
+        && request.resource.data.ageConfirmedAt is timestamp;
 
       allow update: if isSelf(uid)
         && request.resource.data.uid == uid

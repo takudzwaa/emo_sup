@@ -25,6 +25,9 @@ class FirestoreUserProfileRepository implements UserProfileRepository {
         orElse: () => AuthMethod.email,
       ),
       createdAt: requireTimestamp(data['createdAt'], fallback: DateTime.now()),
+      ageConfirmedAt: data['ageConfirmedAt'] == null
+          ? null
+          : requireTimestamp(data['ageConfirmedAt'], fallback: DateTime.now()),
     );
   }
 
@@ -46,6 +49,8 @@ class FirestoreUserProfileRepository implements UserProfileRepository {
       'anonymousName': profile.anonymousName,
       'authMethod': profile.authMethod.name,
       'createdAt': toTimestamp(profile.createdAt),
+      if (profile.ageConfirmedAt != null)
+        'ageConfirmedAt': toTimestamp(profile.ageConfirmedAt!),
     }, SetOptions(merge: true));
   }
 
