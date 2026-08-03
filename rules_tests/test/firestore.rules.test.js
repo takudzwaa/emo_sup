@@ -332,6 +332,164 @@ describe('bookings server-only writes (PR 9)', () => {
   });
 });
 
+describe('config (PR: free_match/async/booking readable, else denied)', () => {
+  it('allows signed-in get of an allow-listed config doc', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('config').doc('free_match').set({
+        weeklyAsyncQuota: 2,
+        enabled: true,
+      });
+    });
+    const db = authedDb('user_a');
+    await assertSucceeds(db.collection('config').doc('free_match').get());
+  });
+
+  it('denies get of a config doc not on the allowlist (e.g. payments)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('config').doc('payments').set({
+        enabled: false,
+        gatewayVerified: false,
+      });
+    });
+    const db = authedDb('user_a');
+    await assertFails(db.collection('config').doc('payments').get());
+  });
+
+  it('denies unauthenticated get and any client write', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('config').doc('free_match').set({
+        enabled: true,
+      });
+    });
+    await assertFails(unauthDb().collection('config').doc('free_match').get());
+    await assertFails(
+      authedDb('user_a').collection('config').doc('free_match').set({ enabled: false }),
+    );
+  });
+});
+
+describe('memberships (server-write only)', () => {
+  it('allows self get of a seeded membership; denies get of another uid', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('memberships').doc('user_a').set({
+        uid: 'user_a',
+        tier: 'planActive',
+      });
+    });
+    await assertSucceeds(
+      authedDb('user_a').collection('memberships').doc('user_a').get(),
+    );
+    await assertFails(
+      authedDb('user_b').collection('memberships').doc('user_a').get(),
+    );
+  });
+
+  it('denies client create/update/delete', async () => {
+    const db = authedDb('user_a');
+    await assertFails(
+      db.collection('memberships').doc('user_a').set({ uid: 'user_a', tier: 'planActive' }),
+    );
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('memberships').doc('user_a').set({ uid: 'user_a' });
+    });
+    await assertFails(
+      db.collection('memberships').doc('user_a').set({ tier: 'hacked' }, { merge: true }),
+    );
+    await assertFails(db.collection('memberships').doc('user_a').delete());
+  });
+});
+
+describe('blocks (create by blocker; bilateral read)', () => {
+  it('allows a user to create a block as themselves', async () => {
+    const db = authedDb('user_a');
+    await assertSucceeds(
+      db.collection('blocks').doc('user_a_listener_1').set({
+        blockerId: 'user_a',
+        blockedId: 'listener_1',
+        createdAt: new Date().toISOString(),
+      }),
+    );
+  });
+
+  it('denies creating a block claiming to be someone else', async () => {
+    const db = authedDb('user_a');
+    await assertFails(
+      db.collection('blocks').doc('x').set({
+        blockerId: 'someone_else',
+        blockedId: 'listener_1',
+        createdAt: new Date().toISOString(),
+      }),
+    );
+  });
+
+  it('allows blocker and blocked party to read; denies a third party; denies list', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('blocks').doc('b1').set({
+        blockerId: 'user_a',
+        blockedId: 'listener_1',
+        createdAt: new Date().toISOString(),
+      });
+    });
+    await assertSucceeds(authedDb('user_a').collection('blocks').doc('b1').get());
+    await assertSucceeds(authedDb('listener_1').collection('blocks').doc('b1').get());
+    await assertFails(authedDb('stranger_1').collection('blocks').doc('b1').get());
+    await assertFails(authedDb('user_a').collection('blocks').get());
+  });
+
+  it('denies update and delete', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('blocks').doc('b1').set({
+        blockerId: 'user_a',
+        blockedId: 'listener_1',
+        createdAt: new Date().toISOString(),
+      });
+    });
+    const db = authedDb('user_a');
+    await assertFails(
+      db.collection('blocks').doc('b1').set({ blockedId: 'someone_else' }, { merge: true }),
+    );
+    await assertFails(db.collection('blocks').doc('b1').delete());
+  });
+});
+
+describe('listener availability (signed-in read, server-write only)', () => {
+  it('allows signed-in read of a seeded slot', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore()
+        .collection('listeners').doc('listener_1')
+        .collection('availability').doc('slot_1')
+        .set({ start: new Date().toISOString(), sponsored: false });
+    });
+    await assertSucceeds(
+      authedDb('user_a')
+        .collection('listeners').doc('listener_1')
+        .collection('availability').doc('slot_1')
+        .get(),
+    );
+  });
+
+  it('denies unauthenticated read and any client write', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore()
+        .collection('listeners').doc('listener_1')
+        .collection('availability').doc('slot_1')
+        .set({ start: new Date().toISOString() });
+    });
+    await assertFails(
+      unauthDb()
+        .collection('listeners').doc('listener_1')
+        .collection('availability').doc('slot_1')
+        .get(),
+    );
+    await assertFails(
+      authedDb('user_a')
+        .collection('listeners').doc('listener_1')
+        .collection('availability').doc('slot_2')
+        .set({ start: new Date().toISOString() }),
+    );
+  });
+});
+
 describe('reports + default deny', () => {
   it('allows report create once; denies read by submitter', async () => {
     const db = authedDb('reporter_1');

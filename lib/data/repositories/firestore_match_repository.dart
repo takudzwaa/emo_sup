@@ -92,6 +92,8 @@ class FirestoreMatchRepository implements MatchRepository {
           return const MatchNoCapacity();
         case 'failed-precondition':
           return const MatchDisabled();
+        case 'aborted':
+          return const MatchRateLimited();
         default:
           return MatchError(e.message ?? e.code);
       }

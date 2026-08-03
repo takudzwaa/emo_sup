@@ -56,11 +56,16 @@ async function main() {
   await db.doc('config/payments').set(
     {
       enabled: false,
+      // Separate flag: confirmBookingPayment / activateMembership refuse to
+      // run unless this is ALSO true, so enabling `enabled` alone (e.g. to
+      // test checkout UI) can't accidentally open unverified payment
+      // confirmation. Only flip once gateway webhook verification ships.
+      gatewayVerified: false,
       note: 'Deferred — enable only after gateway webhook verification ships.',
     },
     { merge: true },
   );
-  console.log('Seeded config/payments (enabled: false)');
+  console.log('Seeded config/payments (enabled: false, gatewayVerified: false)');
 
   for (const l of LISTENERS) {
     const { id, ...rest } = l;

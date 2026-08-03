@@ -16,3 +16,8 @@
 # Crashlytics needs source file + line numbers for readable stacks.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# Flutter's engine references Play Core's deferred-components (dynamic
+# feature module) APIs, but this app doesn't use dynamic feature modules —
+# the classes are genuinely absent, not misconfigured, so tell R8 that's OK.
+-dontwarn com.google.android.play.core.**

@@ -82,7 +82,11 @@ remains the day-to-day default for both platforms).
    (Play Integrity with Android SHA-256 + App Attest). Confirm
    `functions/.env.emo-sup-prod` has `ENFORCE_APP_CHECK=true`.
 
-3. **For a store release build**, generate the Android upload keystore once:
+3. **For a store release build**, set `DEVELOPMENT_TEAM` in
+   `ios/Flutter/Team.xcconfig` (your Apple Developer Team ID — see comments
+   in that file) so unattended/CI `flutter build ipa` can archive; interactive
+   Xcode builds don't need this if a team is already picked in Signing &
+   Capabilities. Then generate the Android upload keystore once:
 
    ```bash
    keytool -genkey -v -keystore android/upload-keystore.jks \

@@ -75,10 +75,20 @@ android {
     buildTypes {
         release {
             // Prefer the upload keystore when present; fall back to debug so
-            // `flutter run --release` still works on a fresh checkout.
+            // `flutter run --release` still works on a fresh checkout. Loud,
+            // not silent — a debug-signed AAB uploaded to Play Console by
+            // mistake is a real, hard-to-notice failure mode.
             signingConfig = if (hasReleaseKeystore) {
                 signingConfigs.getByName("release")
             } else {
+                logger.warn(
+                    "WARNING: android/key.properties not found — this release " +
+                        "build is DEBUG-SIGNED. Fine for local `flutter run " +
+                        "--release`, but a debug-signed build bundle will be " +
+                        "rejected by Play Console. Run keytool + fill in " +
+                        "android/key.properties before a real release build " +
+                        "(see README 'Production deploy runbook').",
+                )
                 signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true

@@ -44,6 +44,13 @@ class MatchDisabled extends MatchResult {
   const MatchDisabled();
 }
 
+/// 'now' mode has no weekly quota but is still rate-limited per rolling
+/// hour server-side, to stop a user from spamming sessions and burning
+/// live listener capacity.
+class MatchRateLimited extends MatchResult {
+  const MatchRateLimited();
+}
+
 class MatchError extends MatchResult {
   const MatchError(this.message);
   final String message;

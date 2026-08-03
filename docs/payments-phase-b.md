@@ -20,6 +20,18 @@
 3. Field-test checklist: success, decline, timeout, double-submit, offline retry.
 4. Switch `AppServices.payments` from Fake → Staging → Real via flavor.
 
+## Go-live gate
+
+`confirmBookingPayment` and `activateMembership` currently trust a
+client-supplied `paymentId` with no gateway verification — safe only because
+they check **two** separate `config/payments` flags: `enabled` (general
+checkout toggle) and `gatewayVerified` (functions/src/index.ts:
+`gatewayVerificationImplemented()`). Do not set `gatewayVerified: true` until
+this file's webhook-verification work has actually shipped and replaced the
+client-trust code in both functions — the two-flag split exists specifically
+so that flipping `enabled` alone (e.g. to test checkout UI) can't
+accidentally open a free-money hole.
+
 ## Client switch
 ```dart
 // prototype / tests

@@ -8,7 +8,7 @@ class FeatureFlags extends ChangeNotifier {
   FeatureFlags({
     this._matchEnabled = true,
     this._bookingsEnabled = true,
-    this._paymentsEnabled = true,
+    this._paymentsEnabled = false,
     this._listenLiveEnabled = true,
   });
 

@@ -31,6 +31,22 @@ async function paymentsEnabled(): Promise<boolean> {
   return snap.data()?.enabled === true;
 }
 
+/**
+ * A SEPARATE flag from `enabled`, deliberately: `confirmBookingPayment` and
+ * `activateMembership` still trust a client-supplied paymentId with no
+ * gateway webhook verification (Phase B). Gating them on the same
+ * `enabled` flag used for the rest of checkout would mean one operator
+ * flipping that flag to test booking/checkout UI also silently opens a
+ * free-money hole. Requiring this second, unambiguously-named flag means
+ * that can't happen by accident — it must be turned on deliberately, and
+ * only once real gateway verification actually replaces the client-trust
+ * code below.
+ */
+async function gatewayVerificationImplemented(): Promise<boolean> {
+  const snap = await db.doc('config/payments').get();
+  return snap.data()?.gatewayVerified === true;
+}
+
 /** ISO-ish week key Africa/Harare (UTC+2). */
 function weekIdHarare(now = new Date()): string {
   const harareMs = now.getTime() + 2 * 60 * 60 * 1000;
@@ -42,6 +58,18 @@ function weekIdHarare(now = new Date()): string {
   const week = Math.floor((dayOfYear - 1) / 7) + 1;
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
+
+/** Hour bucket key Africa/Harare (UTC+2), for the 'now' mode rate limit. */
+function hourKeyHarare(now = new Date()): string {
+  const harareMs = now.getTime() + 2 * 60 * 60 * 1000;
+  const d = new Date(harareMs);
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}` +
+    `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCHours()).padStart(2, '0')}`;
+}
+
+/** 'now' mode has no weekly quota (it's not free-async) but still must not
+ *  be spammable — each session consumes scarce, real listener capacity. */
+const NOW_MODE_HOURLY_LIMIT = 5;
 
 async function isBlockedPair(a: string, b: string): Promise<boolean> {
   const id1 = `${a}_${b}`;
@@ -101,6 +129,21 @@ export const requestMatch = onCall(callOpts, async (request) => {
         { merge: true },
       );
       quotaCharged = true;
+    } else {
+      // 'now' mode: no weekly quota, but rate-limit per rolling hour so a
+      // user can't spam-create sessions and burn listener capacity.
+      const hourKey = hourKeyHarare();
+      const rateRef = db.doc(`users/${uid}/match_quota/now_${hourKey}`);
+      const rateSnap = await tx.get(rateRef);
+      const count = (rateSnap.data()?.count as number) ?? 0;
+      if (count >= NOW_MODE_HOURLY_LIMIT) {
+        throw new HttpsError('aborted', 'RATE_LIMITED_NOW');
+      }
+      tx.set(
+        rateRef,
+        { count: count + 1, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true },
+      );
     }
 
     const publicSnap = await tx.get(
@@ -115,8 +158,18 @@ export const requestMatch = onCall(callOpts, async (request) => {
       displayName: string;
       languages?: string[];
     };
+    const allCandidates = publicSnap.docs.map((d) => ({ id: d.id, ...(d.data() as object) })) as Pub[];
+    // A blocked pair must never be re-matched — checking only at message-send
+    // time (onMessageCreate) is too late, since the session itself would
+    // already exist and be visible to both sides.
+    const blockedFlags = await Promise.all(
+      allCandidates.map((c) => isBlockedPair(uid, c.id)),
+    );
+    const docs = allCandidates.filter((_, i) => !blockedFlags[i]);
+    if (docs.length === 0) {
+      throw new HttpsError('unavailable', 'NO_CAPACITY');
+    }
     let pick: Pub | undefined;
-    const docs = publicSnap.docs.map((d) => ({ id: d.id, ...(d.data() as object) })) as Pub[];
     for (const lang of preferredLanguages) {
       pick = docs.find((l) => (l.languages ?? []).includes(lang));
       if (pick) break;
@@ -255,7 +308,10 @@ export const createBookingCheckout = onCall(callOpts, async (request) => {
  * IMPORTANT: still trusts the caller's claim of success — acceptable ONLY
  * while `config/payments.enabled` is false (the gate below refuses all
  * calls). Phase B must replace this with gateway webhook verification
- * BEFORE payments are enabled.
+ * BEFORE payments are enabled. `gatewayVerificationImplemented()` is a
+ * second, separately-named config flag specifically so that flipping
+ * `enabled` alone (e.g. to test checkout UI) can't accidentally activate
+ * this unverified path — see the doc comment on that function.
  */
 export const confirmBookingPayment = onCall(callOpts, async (request) => {
   if (!request.auth?.uid) {
@@ -263,6 +319,9 @@ export const confirmBookingPayment = onCall(callOpts, async (request) => {
   }
   if (!(await paymentsEnabled())) {
     throw new HttpsError('failed-precondition', 'PAYMENTS_DISABLED');
+  }
+  if (!(await gatewayVerificationImplemented())) {
+    throw new HttpsError('failed-precondition', 'PAYMENT_VERIFICATION_NOT_IMPLEMENTED');
   }
   const uid = request.auth.uid;
   const bookingId = String(request.data?.bookingId ?? '');
@@ -462,7 +521,9 @@ export const deleteMyData = onCall(callOpts, async (request) => {
  *
  * IMPORTANT: trusts the client-supplied paymentId — acceptable ONLY while
  * `config/payments.enabled` is false (gate below). Phase B must verify the
- * payment against the gateway BEFORE payments are enabled.
+ * payment against the gateway BEFORE payments are enabled. See
+ * `gatewayVerificationImplemented()` — a second flag guards this
+ * specifically so `enabled` alone can't accidentally activate it.
  */
 export const activateMembership = onCall(callOpts, async (request) => {
   if (!request.auth?.uid) {
@@ -470,6 +531,9 @@ export const activateMembership = onCall(callOpts, async (request) => {
   }
   if (!(await paymentsEnabled())) {
     throw new HttpsError('failed-precondition', 'PAYMENTS_DISABLED');
+  }
+  if (!(await gatewayVerificationImplemented())) {
+    throw new HttpsError('failed-precondition', 'PAYMENT_VERIFICATION_NOT_IMPLEMENTED');
   }
   const uid = request.auth.uid;
   const planId = String(request.data?.planId ?? 'plan_monthly_29');

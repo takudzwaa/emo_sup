@@ -36,7 +36,11 @@ class FirebaseAuthService implements AuthService {
             email: email.trim(),
             password: password,
           );
-          return cred.user!.uid;
+          final user = cred.user!;
+          // Best-effort: raises the bar on throwaway spam signups without
+          // blocking onboarding if sending happens to fail.
+          unawaited(user.sendEmailVerification().catchError((_) {}));
+          return user.uid;
         }
         rethrow;
       }

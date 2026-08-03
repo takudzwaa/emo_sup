@@ -1,0 +1,12 @@
+// Development team for automatic code signing. Required for unattended /
+// CI archive builds (`flutter build ipa`) — without it, xcodebuild has no
+// team to pick a provisioning profile from and the archive step fails.
+//
+// Find your Team ID at https://developer.appleid.apple.com/account under
+// Membership (10-character code, e.g. ABCDE12345), or in Xcode ->
+// Settings -> Accounts -> your Apple ID -> Team.
+//
+// Leave blank for interactive Xcode builds where a team is already chosen
+// in the Signing & Capabilities UI — this file only matters for
+// command-line / CI archiving.
+DEVELOPMENT_TEAM =

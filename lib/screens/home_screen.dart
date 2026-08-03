@@ -190,6 +190,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Talk-to-someone is temporarily unavailable. You can still '
                 'open Safety & Privacy and crisis resources.',
           );
+        case MatchRateLimited():
+          await _showMatchEmptyState(
+            title: 'Please slow down a little',
+            body:
+                "You've started several chats in a short time. Take a "
+                'breath and try again shortly — or book a future session.',
+          );
         case MatchError(:final message):
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(message)),

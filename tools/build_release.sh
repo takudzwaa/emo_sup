@@ -60,6 +60,13 @@ fi
 echo "    OK: $ANDROID_CONFIG -> $ANDROID_PROJECT_ID"
 
 if [[ "$TARGET" == "ipa" ]]; then
+  TEAM_LINE="$(grep '^DEVELOPMENT_TEAM' ios/Flutter/Team.xcconfig 2>/dev/null || true)"
+  if [[ -z "${TEAM_LINE#DEVELOPMENT_TEAM =}" ]] || [[ "$TEAM_LINE" == "DEVELOPMENT_TEAM =" ]]; then
+    echo "error: ios/Flutter/Team.xcconfig has no DEVELOPMENT_TEAM set — unattended archiving will fail." >&2
+    echo "       Fill it in (see comments in that file) before building an ipa." >&2
+    exit 1
+  fi
+
   echo "==> Wiring up iOS config for '$ENV'"
   if [[ "$ENV" == "prod" ]]; then
     IOS_SOURCE="ios/Runner/GoogleService-Info-Prod.plist"
